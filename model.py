@@ -9,15 +9,20 @@ from torch.autograd import Variable
 from data_generator import AudioSampleGenerator
 from scipy.io import wavfile
 
+"""
+Here we define the discriminator and generator for SEGAN.
+Also, after definition of each modules, run the training.
+"""
 
+# define folders for data
 data_path = '../data/segan'
 clean_train_foldername = 'clean_trainset_wav/clean_trainset_56spk_wav'
 noisy_train_foldername = 'noisy_trainset_wav/noisy_trainset_56spk_wav'
 out_clean_train_fdrnm = 'clean_trainset_wav_16k'
 out_noisy_train_fdrnm = 'noisy_trainset_wav_16k'
-ser_data_fdrnm = 'ser_data'
-gen_data_fdrnm = 'gen_data_v2'
-model_fdrnm = 'models'
+ser_data_fdrnm = 'ser_data'  # serialized data
+gen_data_fdrnm = 'gen_data_v2'  # folder for saving generated data
+model_fdrnm = 'models'  # folder for saving models
 
 # create folder for generated data
 gen_data_path = os.path.join(os.getcwd(), gen_data_fdrnm)
@@ -31,6 +36,9 @@ if not os.path.exists(models_path):
 
 
 class Discriminator(nn.Module):
+    """
+    D
+    """
     def __init__(self, dropout_drop=0.5):
         super().__init__()
         # Define convolution operations.
@@ -85,35 +93,40 @@ class Discriminator(nn.Module):
 
 
 class Generator(nn.Module):
+    """
+    G
+    """
     def __init__(self, batch_size):
         super().__init__()
-        # size notations = [batch_size x feature_maps x width] (height omitted b/c 1D convolutions)
+        # size notations = [batch_size x feature_maps x width] (height omitted - 1D convolutions)
         # encoder gets a noisy signal as input
-        self.enc1 = nn.Conv1d(in_channels=1, out_channels=16, kernel_size=32, stride=2, padding=15)   # out : 8192 x 16
+        self.enc1 = nn.Conv1d(in_channels=1, out_channels=16, kernel_size=32, stride=2, padding=15)   # out : [B x 16 x 8192]
         self.enc1_nl = nn.PReLU()  # non-linear transformation after encoder layer 1
-        self.enc2 = nn.Conv1d(16, 32, 31, 2, 15)  # output : [batch_size x 32 x 4096]
+        self.enc2 = nn.Conv1d(16, 32, 32, 2, 15)  # [B x 32 x 4096]
         self.enc2_nl = nn.PReLU()
-        self.enc3 = nn.Conv1d(32, 32, 31, 2, 15)  # [B x 32 x 2048]
+        self.enc3 = nn.Conv1d(32, 32, 32, 2, 15)  # [B x 32 x 2048]
         self.enc3_nl = nn.PReLU()
-        self.enc4 = nn.Conv1d(32, 64, 31, 2, 15)  # [B x 64 x 1024]
+        self.enc4 = nn.Conv1d(32, 64, 32, 2, 15)  # [B x 64 x 1024]
         self.enc4_nl = nn.PReLU()
-        self.enc5 = nn.Conv1d(64, 64, 31, 2, 15)  # [B x 64 x 512]
+        self.enc5 = nn.Conv1d(64, 64, 32, 2, 15)  # [B x 64 x 512]
         self.enc5_nl = nn.PReLU()
-        self.enc6 = nn.Conv1d(64, 128, 31, 2, 15)  # [B x 128 x 256]
+        self.enc6 = nn.Conv1d(64, 128, 32, 2, 15)  # [B x 128 x 256]
         self.enc6_nl = nn.PReLU()
-        self.enc7 = nn.Conv1d(128, 128, 31, 2, 15)  # [B x 128 x 128]
+        self.enc7 = nn.Conv1d(128, 128, 32, 2, 15)  # [B x 128 x 128]
         self.enc7_nl = nn.PReLU()
-        self.enc8 = nn.Conv1d(128, 256, 31, 2, 15)  # [B x 256 x 64]
+        self.enc8 = nn.Conv1d(128, 256, 32, 2, 15)  # [B x 256 x 64]
         self.enc8_nl = nn.PReLU()
-        self.enc9 = nn.Conv1d(256, 256, 31, 2, 15)  # [B x 256 x 32]
+        self.enc9 = nn.Conv1d(256, 256, 32, 2, 15)  # [B x 256 x 32]
         self.enc9_nl = nn.PReLU()
-        self.enc10 = nn.Conv1d(256, 512, 31, 2, 15)  # [B x 512 x 16]
+        self.enc10 = nn.Conv1d(256, 512, 32, 2, 15)  # [B x 512 x 16]
         self.enc10_nl = nn.PReLU()
-        self.enc11 = nn.Conv1d(512, 1024, 31, 2, 15)  # output : [B x 1024 x 8]
+        self.enc11 = nn.Conv1d(512, 1024, 32, 2, 15)  # output : [B x 1024 x 8]
         self.enc11_nl = nn.PReLU()
 
         # decoder generates an enhanced signal
-        self.dec10 = nn.ConvTranspose1d(in_channels=2048, out_channels=512, kernel_size=32, stride=2, padding=15)  # 'deconvolution'
+        # each decoder output are concatenated with homolgous encoder output,
+        # so the feature map sizes are doubled
+        self.dec10 = nn.ConvTranspose1d(in_channels=2048, out_channels=512, kernel_size=32, stride=2, padding=15)
         self.dec10_nl = nn.PReLU()  # out : [B x 512 x 16]
         self.dec9 = nn.ConvTranspose1d(1024, 256, 32, 2, 15)  # [B x 256 x 32]
         self.dec9_nl = nn.PReLU()
@@ -133,9 +146,16 @@ class Generator(nn.Module):
         self.dec2_nl = nn.PReLU()
         self.dec1 = nn.ConvTranspose1d(64, 16, 32, 2, 15)  # [B x 16 x 8192]
         self.dec1_nl = nn.PReLU()
-        self.dec_final = nn.ConvTranspose1d(32, 1, 32, 2, 15)  # [B x 1 x 8192]
+        self.dec_final = nn.ConvTranspose1d(32, 1, 32, 2, 15)  # [B x 1 x 16384]
 
     def forward(self, x, z):
+        """
+        Forward pass of generator.
+
+        Args:
+            x: input data (signal)
+            z: latent vector
+        """
         ### encoding step
         e1 = self.enc1(x)
         e2 = self.enc2(self.enc1_nl(e1))
@@ -179,13 +199,23 @@ class Generator(nn.Module):
         out = self.dec_final(d1_c)
         return out
 
-batch_size = 400
 
-discriminator = torch.nn.DataParallel(Discriminator(), device_ids=[0, 1, 2]).cuda()
+### SOME TRAINING PARAMETERS ###
+# batch size
+batch_size = 400
+learning_rate = 0.00001
+g_lambda = 100  # regularizer for generator
+d_steps = 2  # number of parameter updates for discriminator per iteration
+
+
+# create D and G instances
+discriminator = torch.nn.DataParallel(Discriminator(), device_ids=[0, 1, 2]).cuda()  # use GPU
 print(discriminator)
 print('Discriminator created')
 
 generator = torch.nn.DataParallel(Generator(batch_size), device_ids=[0, 1, 2]).cuda()
+# latent variable for generator
+z = Variable(torch.rand((batch_size, 1024, 8)).cuda(), requires_grad=True)
 print(generator)
 print('Generator created')
 
@@ -196,34 +226,29 @@ random_data_loader = DataLoader(
         batch_size=batch_size,  # specified batch size here
         shuffle=True,
         num_workers=4,
-        drop_last=True,
+        drop_last=True,  # drop the last batch that cannot be divided by batch_size
         pin_memory=True)
+print('DataLoader created')
 
-# test noisy samples
+# test samples for generation
 test_noise_filenames, fixed_test_noise = sample_generator.fixed_test_audio(batch_size)
 fixed_test_noise = Variable(torch.from_numpy(fixed_test_noise))
-print('Dataloader loaded.')
-
-# lossfunction for generator
-g_loss_fun = nn.MSELoss()
+print('Test samples loaded')
 
 # optimizers
-learning_rate = 0.00001
 g_optimizer = optim.RMSprop(generator.parameters(), lr=0.00001)
 d_optimizer = optim.RMSprop(discriminator.parameters(), lr=0.00001)
-d_steps = 2
-g_lambda = 100  # regularizer for generator
 
 
 # Train!
-z = Variable(torch.rand((batch_size, 1024, 8)).cuda(), requires_grad=True)  # noisy latent variable initialized
+print('Starting Training...')
 for epoch in range(40):
     for i, sample_batch_pairs in enumerate(random_data_loader):
         batch_pairs_var = Variable(sample_batch_pairs).cuda()  # [40 x 2 x 16384]
 
         # 매우 더러운 방식으로 샘플을 만들고 있음. 반성하겠음.
         noisy_batch = np.vstack(tuple([pair[1].numpy() for pair in sample_batch_pairs])).reshape(batch_size, 1, 16384)
-        noisy_batch_var = Variable(torch.from_numpy(noisy_batch), requires_grad=False).cuda()
+        noisy_batch_var = Variable(torch.from_numpy(noisy_batch), requires_grad=False).cuda()  # do not apply grad update for samples
         clean_batch = np.vstack(tuple([pair[0].numpy() for pair in sample_batch_pairs])).reshape(batch_size, 1, 16384)
         clean_batch_var = Variable(torch.from_numpy(clean_batch), requires_grad=False).cuda()
 
@@ -263,7 +288,7 @@ for epoch in range(40):
         g_optimizer.step()
 
         if (i + 1) % 10 == 0:
-            # print log message
+            # print message per 10 steps
             print('Epoch {}, Step {}, d_clean_loss {}, d_noisy_loss {}, g_loss {}'
                     .format(epoch + 1, i + 1, clean_loss.data[0], noisy_loss.data[0], g_loss.data[0]))
 
