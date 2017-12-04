@@ -18,7 +18,8 @@ class AudioSampleGenerator(data.Dataset):
     def fixed_test_audio(self, num_test_audio):
         test_filenames = np.random.choice(self.filepaths, num_test_audio)
         test_noisy_set = [np.load(f)[1] for f in test_filenames]
-        return test_filenames, np.array(test_noisy_set).reshape(num_test_audio, 1, 16384)
+        test_basenames = [os.path.basename(fpath) for fpath in test_filenames]
+        return test_basenames, np.array(test_noisy_set).reshape(num_test_audio, 1, 16384)
 
     def __getitem__(self, idx):
         pair = np.load(self.filepaths[idx])

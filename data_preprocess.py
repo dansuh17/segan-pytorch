@@ -5,14 +5,29 @@ import numpy as np
 import time
 
 
-data_path = '../data/segan'
-clean_train_foldername = 'clean_trainset_wav/clean_trainset_56spk_wav'
-noisy_train_foldername = 'noisy_trainset_wav/noisy_trainset_56spk_wav'
-out_clean_train_fdrnm = 'clean_trainset_wav_16k'
-out_noisy_train_fdrnm = 'noisy_trainset_wav_16k'
-ser_data_fdrnm = 'ser_data'
+"""
+Audio data preprocessing for SEGAN training.
+
+It provides:
+    1. 16k downsampling (sox required)
+    2. slicing and serializing
+    3. verifying serialized data
+"""
+
+
+# specify the paths - modify the paths at will
+data_path = '../data/segan'  # the base folder for dataset
+clean_train_foldername = 'clean_trainset_wav/clean_trainset_56spk_wav'  # where original clean train data exist
+noisy_train_foldername = 'noisy_trainset_wav/noisy_trainset_56spk_wav'  # where original noisy train data exist
+out_clean_train_fdrnm = 'clean_trainset_wav_16k'  # clean preprocessed data folder
+out_noisy_train_fdrnm = 'noisy_trainset_wav_16k'  # noisy preprocessed data folder
+ser_data_fdrnm = 'ser_data'  # serialized data folder
+
 
 def data_verify():
+    """
+    Verifies the length of each data after preprocessing.
+    """
     ser_data_path = os.path.join(data_path, ser_data_fdrnm)
     for dirname, dirs, files in os.walk(ser_data_path):
         for filename in files:
@@ -20,6 +35,7 @@ def data_verify():
             if data_pair.shape[1] != 16384:
                 print('Snippet length not 16384 : {} instead'.format(data_pair.shape[1]))
                 break
+
 
 def downsample_16k():
     """
@@ -57,6 +73,10 @@ def downsample_16k():
 
 
 def slice_signal(filepath, window_size, stride=0.5):
+    """
+    Helper function for slicing the audio file
+    by window size with [stride] percent overlap (default 50%).
+    """
     wav, sr = librosa.load(filepath)
     n_samples = wav.shape[0]  # contains simple amplitudes
     hop = int(window_size * stride)
@@ -69,6 +89,9 @@ def slice_signal(filepath, window_size, stride=0.5):
 
 
 def process_and_serialize():
+    """
+    Serialize the sliced signals and save on separate folder.
+    """
     start_time = time.time()  # measure the time
     window_size = 2 ** 14  # about 1 second of samples
     dst_folder = os.path.join(data_path, ser_data_fdrnm)
@@ -77,9 +100,11 @@ def process_and_serialize():
         print('Creating new destination folder for new data')
         os.makedirs(dst_folder)
 
-    clean_data_path = os.path.join(data_path, clean_train_foldername)
-    noisy_data_path = os.path.join(data_path, noisy_train_foldername)
+    # the path for source data (16k downsampled)
+    clean_data_path = os.path.join(data_path, out_clean_train_foldername)
+    noisy_data_path = os.path.join(data_path, out_noisy_train_foldername)
 
+    # walk through the path, slice the audio file, and save the serialized result
     for dirname, dirs, files in os.walk(clean_data_path):
         if len(files) == 0:
             continue
@@ -88,19 +113,25 @@ def process_and_serialize():
             clean_filepath = os.path.join(clean_data_path, filename)
             noisy_filepath = os.path.join(noisy_data_path, filename)
 
+            # slice both clean signal and noisy signal
             clean_sliced = slice_signal(clean_filepath, window_size)
             noisy_sliced = slice_signal(noisy_filepath, window_size)
 
+            # serialize - file format goes [origial_file]_[slice_number].npy
+            # ex) p293_154.wav_5.npy denotes 5th slice of p293_154.wav file
             for idx, slice_tuple in enumerate(zip(clean_sliced, noisy_sliced)):
                 pair = np.array([slice_tuple[0], slice_tuple[1]])
                 np.save(os.path.join(dst_folder, '{}_{}'.format(filename, idx)), arr=pair)
 
+    # measure the time it took to process
     end_time = time.time()
     print('Total elapsed time for prerpocessing : {}'.format(end_time - start_time))
 
 
-
 if __name__ == '__main__':
+    """
+    Uncomment each function call that suits your needs.
+    """
     # downsample_16k()
     # process_and_serialize()  #!! takes very long time - about 5000s
-    data_verify()
+    # data_verify()

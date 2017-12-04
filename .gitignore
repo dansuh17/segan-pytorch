@@ -4,3 +4,4 @@ gen_data/
 *.swo
 *.swp
 models/
+gen_data_v2/
