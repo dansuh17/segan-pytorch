@@ -8,10 +8,11 @@ from torch import optim
 from torch.autograd import Variable
 from data_generator import AudioSampleGenerator
 from scipy.io import wavfile
+from vbnorm import VirtualBatchNorm1d
 
 """
 Here we define the discriminator and generator for SEGAN.
-Also, after definition of each modules, run the training.
+After definition of each modules, run the training.
 """
 
 # define folders for data
@@ -45,51 +46,87 @@ class Discriminator(nn.Module):
         # (#input channel, #output channel, kernel_size, stride, padding)
         # in : 16384 x 2
         negative_slope = 0.03
+        self.conv1 = nn.Conv1d(in_channels=2, out_channels=32, kernel_size=31, stride=2, padding=15)   # out : 8192 x 32
+        self.vbn1 = nn.VirtualBatchNorm1d(32)
+        self.lrelu1 = nn.LeakyReLU(negative_slope)
+        self.conv2 = nn.Conv1d(32, 64, 31, 2, 15)  # 4096 x 64
+        self.vbn2 = nn.VirtualBatchNorm1d(64)
+        self.lrelu2 = nn.LeakyReLU(negative_slope)
+        self.conv3 = nn.Conv1d(64, 64, 31, 2, 15)  # 2048 x 64
+        self.dropout1 = nn.Dropout(dropout_drop)
+        self.vbn3 = nn.VirtualBatchNorm1d(64)
+        self.lrelu3 = nn.LeakyReLU(negative_slope)
+        self.conv4 = nn.Conv1d(64, 128, 31, 2, 15) # 1024 x 128
+        self.vbn4 = nn.VirtualBatchNorm1d(128)
+        self.lrelu4 = nn.LeakyReLU(negative_slope)
+        self.conv5 = nn.Conv1d(128, 128, 31, 2, 15)  # 512 x 128
+        self.vbn5 = nn.BatchNorm1d(128)
+        self.lrelu5 = nn.LeakyReLU(negative_slope)
+        self.conv6 = nn.Conv1d(128, 256, 31, 2, 15)  # 256 x 256
+        self.dropout2 = nn.Dropout(dropout_drop)
+        self.vbn6 = nn.VirtualBatchNorm1d(256)
+        self.lrelu6 = nn.LeakyReLU(negative_slope)
+        self.conv7 = nn.Conv1d(256, 256, 31, 2, 15)  # 128 x 256
+        self.vbn7 = nn.VirtualBatchNorm1d(256)
+        self.lrelu7 = nn.LeakyReLU(negative_slope)
+        self.conv8 = nn.Conv1d(256, 512, 31, 2, 15)  # 64 x 512
+        self.vbn8 = nn.VirtualBatchNorm1d(512)
+        self.lrelu8 = nn.LeakyReLU(negative_slope)
+        self.conv9 = nn.Conv1d(512, 512, 31, 2, 15)  # 32 x 512
+        self.dropout3 = nn.Dropout(dropout_drop)
+        self.vbn9 = nn.VirtualBatchNorm1d(512)
+        self.lrelu9 = nn.LeakyReLU(negative_slope)
+        self.conv10 = nn.Conv1d(512, 1024, 31, 2, 15)  # 16 x 1024
+        self.vbn10 = nn.VirtualBatchNorm1d(1024)
+        self.lrelu10 = nn.LeakyReLU(negative_slope)
+        self.conv11 = nn.Conv1d(1024, 2048, 31, 2, 15)  # 8 x 1024
+        self.vbn11 = nn.VirtualBatchNorm1d(2048)
+        self.lrelu11 = nn.LeakyReLU(negative_slope)
+        # 1x1 size kernel for dimension and parameter reduction
+        self.conv_final = nn.Conv1d(2048, 1, kernel_size=1, stride=1)  # 8 x 1
+        self.lrelu_final = nn.LeakyReLU(negative_slope)
+        self.sigmoid = nn.Sigmoid()
 
-        self.model = nn.Sequential(
-            nn.Conv1d(in_channels=2, out_channels=32, kernel_size=31, stride=2, padding=15),   # out : 8192 x 32
-            nn.BatchNorm1d(32),
-            nn.LeakyReLU(negative_slope),
-            nn.Conv1d(32, 64, 31, 2, 15),  # 4096 x 64
-            nn.BatchNorm1d(64),
-            nn.LeakyReLU(negative_slope),
-            nn.Conv1d(64, 64, 31, 2, 15),  # 2048 x 64
-            nn.Dropout(dropout_drop),
-            nn.BatchNorm1d(64),
-            nn.LeakyReLU(negative_slope),
-            nn.Conv1d(64, 128, 31, 2, 15), # 1024 x 128
-            nn.BatchNorm1d(128),
-            nn.LeakyReLU(negative_slope),
-            nn.Conv1d(128, 128, 31, 2, 15),  # 512 x 128
-            nn.BatchNorm1d(128),
-            nn.LeakyReLU(negative_slope),
-            nn.Conv1d(128, 256, 31, 2, 15),  # 256 x 256
-            nn.Dropout(dropout_drop),
-            nn.BatchNorm1d(256),
-            nn.LeakyReLU(negative_slope),
-            nn.Conv1d(256, 256, 31, 2, 15),  # 128 x 256
-            nn.BatchNorm1d(256),
-            nn.LeakyReLU(negative_slope),
-            nn.Conv1d(256, 512, 31, 2, 15),  # 64 x 512
-            nn.BatchNorm1d(512),
-            nn.LeakyReLU(negative_slope),
-            nn.Conv1d(512, 512, 31, 2, 15),  # 32 x 512
-            nn.Dropout(dropout_drop),
-            nn.BatchNorm1d(512),
-            nn.LeakyReLU(negative_slope),
-            nn.Conv1d(512, 1024, 31, 2, 15),  # 16 x 1024
-            nn.BatchNorm1d(1024),
-            nn.LeakyReLU(negative_slope),
-            nn.Conv1d(1024, 2048, 31, 2, 15),  # 8 x 1024
-            nn.BatchNorm1d(2048),
-            nn.LeakyReLU(negative_slope),
-            nn.Conv1d(2048, 1, kernel_size=1, stride=1),  # 8 x 1
-            nn.LeakyReLU(negative_slope),
-            nn.Sigmoid(),
-        )
-
-    def forward(self, x):
-        return self.model(x)
+    def forward(self, x, is_reference: bool):
+        x = self.conv1(x)
+        x = self.vbn1(x, is_reference)
+        x = self.lrelu1(x)
+        x = self.conv2(x)
+        x = self.vbn2(x, is_reference)
+        x = self.lrelu2(x)
+        x = self.conv3(x)
+        x = self.dropout1(x)
+        x = self.vbn3(x, is_reference)
+        x = self.lrelu3(x)
+        x = self.conv4(x)
+        x = self.vbn4(x, is_reference)
+        x = self.lrelu4(x)
+        x = self.conv5(x)
+        x = self.vbn5(x, is_reference)
+        x = self.lrelu5(x)
+        x = self.conv6(x)
+        x = self.dropout2(x)
+        x = self.vbn6(x, is_reference)
+        x = self.lrelu6(x)
+        x = self.conv7(x)
+        x = self.vbn7(x, is_reference)
+        x = self.lrelu7(x)
+        x = self.conv8(x)
+        x = self.vbn8(x, is_reference)
+        x = self.lrelu8(x)
+        x = self.conv9(x)
+        x = self.dropout3(x)
+        x = self.vbn9(x, is_reference)
+        x = self.lrelu9(x)
+        x = self.conv10(x)
+        x = self.vbn10(x, is_reference)
+        x = self.lrelu10(x)
+        x = self.conv11(x)
+        x = self.vbn11(x, is_reference)
+        x = self.lrelu11(x)
+        x = self.conv_final(x)
+        x = self.lrelu_final(x, is_reference)
+        return self.sigmoid(x)
 
 
 class Generator(nn.Module):
@@ -203,7 +240,7 @@ class Generator(nn.Module):
 ### SOME TRAINING PARAMETERS ###
 # batch size
 batch_size = 400
-learning_rate = 0.00001
+learning_rate = 0.0002
 g_lambda = 100  # regularizer for generator
 d_steps = 2  # number of parameter updates for discriminator per iteration
 
@@ -236,8 +273,8 @@ fixed_test_noise = Variable(torch.from_numpy(fixed_test_noise))
 print('Test samples loaded')
 
 # optimizers
-g_optimizer = optim.RMSprop(generator.parameters(), lr=0.00001)
-d_optimizer = optim.RMSprop(discriminator.parameters(), lr=0.00002)
+g_optimizer = optim.RMSprop(generator.parameters(), lr=learning_rate)
+d_optimizer = optim.RMSprop(discriminator.parameters(), lr=learning_rate)
 
 
 # Train!
@@ -276,8 +313,9 @@ for epoch in range(40):
         generated_outputs = generator(noisy_batch_var, z)
         gen_noise_pair = torch.cat((generated_outputs, noisy_batch_var), dim=1)
         outputs = discriminator(gen_noise_pair)
-        # L1 loss between generated output and noisy sample
+
         g_loss = 0.5 * torch.mean((outputs - 1.0) ** 2)
+        # L1 loss between generated output and clean sample
         g_gennoise_dist = g_lambda * torch.abs(torch.sum((torch.add(generated_outputs, torch.neg(clean_batch_var)))))
         g_loss = g_loss + g_gennoise_dist
 
@@ -287,13 +325,13 @@ for epoch in range(40):
         g_loss.backward()
         g_optimizer.step()
 
+        # print message per 10 steps
         if (i + 1) % 10 == 0:
-            # print message per 10 steps
             print('Epoch {}, Step {}, d_clean_loss {}, d_noisy_loss {}, g_loss {}'
                     .format(epoch + 1, i + 1, clean_loss.data[0], noisy_loss.data[0], g_loss.data[0]))
 
+        # save sampled audio at the beginning of each epoch
         if i == 0:
-            # save sampled audio at the beginning of each epoch
             fake_speech = generator(fixed_test_noise, z)
             fake_speech_data = fake_speech.data.cpu().numpy()  # convert to numpy array
             for idx in range(4):
