@@ -237,7 +237,7 @@ print('Test samples loaded')
 
 # optimizers
 g_optimizer = optim.RMSprop(generator.parameters(), lr=0.00001)
-d_optimizer = optim.RMSprop(discriminator.parameters(), lr=0.00001)
+d_optimizer = optim.RMSprop(discriminator.parameters(), lr=0.00002)
 
 
 # Train!
@@ -278,7 +278,7 @@ for epoch in range(40):
         outputs = discriminator(gen_noise_pair)
         # L1 loss between generated output and noisy sample
         g_loss = 0.5 * torch.mean((outputs - 1.0) ** 2)
-        g_gennoise_dist = g_lambda * torch.abs(torch.sum((torch.add(generated_outputs, torch.neg(noisy_batch_var)))))
+        g_gennoise_dist = g_lambda * torch.abs(torch.sum((torch.add(generated_outputs, torch.neg(clean_batch_var)))))
         g_loss = g_loss + g_gennoise_dist
 
         # backprop + optimize
