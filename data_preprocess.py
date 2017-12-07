@@ -101,8 +101,8 @@ def process_and_serialize():
         os.makedirs(dst_folder)
 
     # the path for source data (16k downsampled)
-    clean_data_path = os.path.join(data_path, out_clean_train_foldername)
-    noisy_data_path = os.path.join(data_path, out_noisy_train_foldername)
+    clean_data_path = os.path.join(data_path, out_clean_train_fdrnm)
+    noisy_data_path = os.path.join(data_path, out_noisy_train_fdrnm)
 
     # walk through the path, slice the audio file, and save the serialized result
     for dirname, dirs, files in os.walk(clean_data_path):
@@ -133,5 +133,5 @@ if __name__ == '__main__':
     Uncomment each function call that suits your needs.
     """
     # downsample_16k()
-    # process_and_serialize()  #!! takes very long time - about 5000s
-    # data_verify()
+    process_and_serialize()  #!! takes very long time - about 5000s
+    data_verify()
