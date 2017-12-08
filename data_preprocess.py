@@ -72,12 +72,12 @@ def downsample_16k():
                     shell=True, check=True)
 
 
-def slice_signal(filepath, window_size, stride=0.5):
+def slice_signal(filepath, window_size, stride, sample_rate):
     """
     Helper function for slicing the audio file
     by window size with [stride] percent overlap (default 50%).
     """
-    wav, sr = librosa.load(filepath)
+    wav, sr = librosa.load(filepath, sr=sample_rate)
     n_samples = wav.shape[0]  # contains simple amplitudes
     hop = int(window_size * stride)
     slices = []
@@ -95,6 +95,8 @@ def process_and_serialize():
     start_time = time.time()  # measure the time
     window_size = 2 ** 14  # about 1 second of samples
     dst_folder = os.path.join(data_path, ser_data_fdrnm)
+    sample_rate = 16000
+    stride = 0.5
 
     if not os.path.exists(dst_folder):
         print('Creating new destination folder for new data')
@@ -114,8 +116,8 @@ def process_and_serialize():
             noisy_filepath = os.path.join(noisy_data_path, filename)
 
             # slice both clean signal and noisy signal
-            clean_sliced = slice_signal(clean_filepath, window_size)
-            noisy_sliced = slice_signal(noisy_filepath, window_size)
+            clean_sliced = slice_signal(clean_filepath, window_size, stride, sample_rate)
+            noisy_sliced = slice_signal(noisy_filepath, window_size, stride, sample_rate)
 
             # serialize - file format goes [origial_file]_[slice_number].npy
             # ex) p293_154.wav_5.npy denotes 5th slice of p293_154.wav file

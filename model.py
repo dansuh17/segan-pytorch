@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import os
 import numpy as np
+import emph
 from torch.utils.data import DataLoader
 from torch import optim
 from torch.autograd import Variable
@@ -22,7 +23,7 @@ noisy_train_foldername = 'noisy_trainset_wav/noisy_trainset_56spk_wav'
 out_clean_train_fdrnm = 'clean_trainset_wav_16k'
 out_noisy_train_fdrnm = 'noisy_trainset_wav_16k'
 ser_data_fdrnm = 'ser_data'  # serialized data
-gen_data_fdrnm = 'gen_data_v2'  # folder for saving generated data
+gen_data_fdrnm = 'gen_data_v4'  # folder for saving generated data
 model_fdrnm = 'models'  # folder for saving models
 
 # create folder for generated data
@@ -237,19 +238,31 @@ class Generator(nn.Module):
         return out
 
 
+def split_pair_to_vars(sample_batch_pair):
+        # preemphasis
+        sample_batch_pair = emph.pre_emphasis(sample_batch_pair.numpy(), emph_coeff=0.95)
+        batch_pairs_var = Variable(torch.from_numpy(sample_batch_pair).type(torch.FloatTensor)).cuda()  # [40 x 2 x 16384]
+        clean_batch = np.stack([pair[0].reshape(1, -1) for pair in sample_batch_pair])
+        clean_batch_var = Variable(torch.from_numpy(clean_batch).type(torch.FloatTensor)).cuda()
+        noisy_batch = np.stack([pair[1].reshape(1, -1) for pair in sample_batch_pair])
+        noisy_batch_var = Variable(torch.from_numpy(noisy_batch).type(torch.FloatTensor)).cuda()
+        return batch_pairs_var, clean_batch_var, noisy_batch_var
+
+
 ### SOME TRAINING PARAMETERS ###
 # batch size
-batch_size = 400
+batch_size = 100
 learning_rate = 0.0002
 g_lambda = 100  # regularizer for generator
+use_devices = [0, 1]
 
 
 # create D and G instances
-discriminator = torch.nn.DataParallel(Discriminator(), device_ids=[0]).cuda()  # use GPU
+discriminator = torch.nn.DataParallel(Discriminator(), device_ids=use_devices).cuda()  # use GPU
 print(discriminator)
 print('Discriminator created')
 
-generator = torch.nn.DataParallel(Generator(batch_size), device_ids=[0]).cuda()
+generator = torch.nn.DataParallel(Generator(batch_size), device_ids=use_devices).cuda()
 # latent variable for generator
 z = Variable(torch.rand((batch_size, 1024, 8)).cuda(), requires_grad=True)
 print(generator)
@@ -280,11 +293,9 @@ d_optimizer = optim.RMSprop(discriminator.parameters(), lr=learning_rate)
 print('Starting Training...')
 for epoch in range(40):
     for i, sample_batch_pairs in enumerate(random_data_loader):
-        batch_pairs_var = Variable(sample_batch_pairs).cuda()  # [40 x 2 x 16384]
-        clean_batch = np.stack([pair[0].numpy().reshape(1, -1) for pair in sample_batch_pairs])
-        clean_batch_var = Variable(torch.from_numpy(clean_batch), requires_grad=False).cuda()
-        noisy_batch = np.stack([pair[1].numpy().reshape(1, -1) for pair in sample_batch_pairs])
-        noisy_batch_var = Variable(torch.from_numpy(noisy_batch), requires_grad=False).cuda()  # do not apply grad update for samples
+        # using the sample batch pair, split into
+        # batch of combined pairs, clean signals, and noisy signals
+        batch_pairs_var, clean_batch_var, noisy_batch_var = split_pair_to_vars(sample_batch_pairs)
 
         ##### TRAIN D #####
         ##### TRAIN D to recognize clean audio as clean
@@ -311,10 +322,11 @@ for epoch in range(40):
         gen_noise_pair = torch.cat((generated_outputs, noisy_batch_var), dim=1)
         outputs = discriminator(gen_noise_pair)
 
-        g_loss = 0.5 * torch.mean((outputs - 1.0) ** 2)
+        g_loss_ = 0.5 * torch.mean((outputs - 1.0) ** 2)
         # L1 loss between generated output and clean sample
-        g_gennoise_dist = g_lambda * torch.abs(torch.sum((torch.add(generated_outputs, torch.neg(clean_batch_var)))))
-        g_loss = g_loss + g_gennoise_dist
+        l1_dist = torch.abs(torch.add(generated_outputs, torch.neg(clean_batch_var)))
+        g_gennoise_dist = g_lambda * torch.mean(l1_dist)
+        g_loss = g_loss_ + g_gennoise_dist
 
         # backprop + optimize
         generator.zero_grad()
@@ -324,8 +336,8 @@ for epoch in range(40):
 
         # print message per 10 steps
         if (i + 1) % 10 == 0:
-            print('Epoch {}, Step {}, d_clean_loss {}, d_noisy_loss {}, g_loss {}'
-                    .format(epoch + 1, i + 1, clean_loss.data[0], noisy_loss.data[0], g_loss.data[0]))
+            print('Epoch {}, Step {}, d_clean_loss {}, d_noisy_loss {}, g_loss {}, g_loss_cond {}'
+                    .format(epoch + 1, i + 1, clean_loss.data[0], noisy_loss.data[0], g_loss.data[0], g_gennoise_dist.data[0]))
 
         # save sampled audio at the beginning of each epoch
         if i == 0:

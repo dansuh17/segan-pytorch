@@ -1,6 +1,6 @@
 __pycache__/
 log/
-gen_data/
+gen_data*/
 *.swo
 *.swp
 models/
