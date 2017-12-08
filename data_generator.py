@@ -1,3 +1,4 @@
+import torch
 from torch.utils import data
 import numpy as np
 import os
@@ -19,6 +20,11 @@ class AudioSampleGenerator(data.Dataset):
         self.filepaths = [os.path.join(data_folder_path, filename)
                 for filename in os.listdir(data_folder_path)]
         self.num_data = len(self.filepaths)
+
+    def reference_batch(self, batch_size):
+        ref_filenames = np.random.choice(self.filepaths, batch_size)
+        ref_batch = torch.from_numpy(np.stack([np.load(f) for f in ref_filenames]))
+        return ref_batch
 
     def fixed_test_audio(self, num_test_audio):
         """

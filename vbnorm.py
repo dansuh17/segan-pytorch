@@ -38,7 +38,7 @@ class VirtualBatchNorm1d(Module):
         mean_sq = (x ** 2).mean(2, keepdim=True).mean(0, keepdim=True)
         return mean, mean_sq
 
-    def forward(self, x, is_reference: bool, ref_mean, ref_mean_sq):
+    def forward(self, x, ref_mean: None, ref_mean_sq: None):
         """
         Forward pass of virtual batch normalization.
         Virtual batch normalization require two forward passes
@@ -53,27 +53,19 @@ class VirtualBatchNorm1d(Module):
             x: normalized batch tensor
         """
         mean, mean_sq = self.get_stats(x)
-        batch_size = x.size(0)
-
-        # store the statistics for reference batch
-        if is_reference:
-            # self.ref_mean = Variable(mean.data.clone(), requires_grad=True)
-            self.ref_mean = nn.Parameter(mean.data.clone())
-            self.ref_mean_sq = nn.Parameter(mean_sq.data.clone())
-            self.ref_mean.register_hook(lambda grad: mean.backward(grad, retain_graph=True))  # TODO ??
-            self.ref_mean_sq.register_hook(lambda grad: mean_sq.backward(grad, retain_graph=True))
-            out = self._normalize(x, mean, mean_sq).detach()
+        if ref_mean is None or ref_mean_sq is None:
+            # reference mode - works just like batch norm
+            mean = mean.clone().detach()
+            mean_sq = mean_sq.clone().detach()
+            out = self._normalize(x, mean, mean_sq)
         else:
             # calculate new mean and mean_sq
+            batch_size = x.size(0)
             new_coeff = 1. / (batch_size + 1.)
             old_coeff = 1. - new_coeff
             mean = new_coeff * mean + old_coeff * ref_mean
             mean_sq = new_coeff * mean_sq + old_coeff * ref_mean_sq
             out = self._normalize(x, mean, mean_sq)
-
-            # delete stored information
-            self.ref_mean = None
-            self.ref_mean_sq = None
         return out, mean, mean_sq
 
     def _normalize(self, x, mean, mean_sq):

@@ -48,82 +48,121 @@ class Discriminator(nn.Module):
         # in : 16384 x 2
         negative_slope = 0.03
         self.conv1 = nn.Conv1d(in_channels=2, out_channels=32, kernel_size=31, stride=2, padding=15)   # out : 8192 x 32
-        self.vbn1 = nn.BatchNorm1d(32)
+        self.vbn1 = VirtualBatchNorm1d(32)
         self.lrelu1 = nn.LeakyReLU(negative_slope)
         self.conv2 = nn.Conv1d(32, 64, 31, 2, 15)  # 4096 x 64
-        self.vbn2 = nn.BatchNorm1d(64)
+        self.vbn2 = VirtualBatchNorm1d(64)
         self.lrelu2 = nn.LeakyReLU(negative_slope)
         self.conv3 = nn.Conv1d(64, 64, 31, 2, 15)  # 2048 x 64
         self.dropout1 = nn.Dropout(dropout_drop)
-        self.vbn3 = nn.BatchNorm1d(64)
+        self.vbn3 = VirtualBatchNorm1d(64)
         self.lrelu3 = nn.LeakyReLU(negative_slope)
         self.conv4 = nn.Conv1d(64, 128, 31, 2, 15) # 1024 x 128
-        self.vbn4 = nn.BatchNorm1d(128)
+        self.vbn4 = VirtualBatchNorm1d(128)
         self.lrelu4 = nn.LeakyReLU(negative_slope)
         self.conv5 = nn.Conv1d(128, 128, 31, 2, 15)  # 512 x 128
-        self.vbn5 = nn.BatchNorm1d(128)
+        self.vbn5 = VirtualBatchNorm1d(128)
         self.lrelu5 = nn.LeakyReLU(negative_slope)
         self.conv6 = nn.Conv1d(128, 256, 31, 2, 15)  # 256 x 256
         self.dropout2 = nn.Dropout(dropout_drop)
-        self.vbn6 = nn.BatchNorm1d(256)
+        self.vbn6 = VirtualBatchNorm1d(256)
         self.lrelu6 = nn.LeakyReLU(negative_slope)
         self.conv7 = nn.Conv1d(256, 256, 31, 2, 15)  # 128 x 256
-        self.vbn7 = nn.BatchNorm1d(256)
+        self.vbn7 = VirtualBatchNorm1d(256)
         self.lrelu7 = nn.LeakyReLU(negative_slope)
         self.conv8 = nn.Conv1d(256, 512, 31, 2, 15)  # 64 x 512
-        self.vbn8 = nn.BatchNorm1d(512)
+        self.vbn8 = VirtualBatchNorm1d(512)
         self.lrelu8 = nn.LeakyReLU(negative_slope)
         self.conv9 = nn.Conv1d(512, 512, 31, 2, 15)  # 32 x 512
         self.dropout3 = nn.Dropout(dropout_drop)
-        self.vbn9 = nn.BatchNorm1d(512)
+        self.vbn9 = VirtualBatchNorm1d(512)
         self.lrelu9 = nn.LeakyReLU(negative_slope)
         self.conv10 = nn.Conv1d(512, 1024, 31, 2, 15)  # 16 x 1024
-        self.vbn10 = nn.BatchNorm1d(1024)
+        self.vbn10 = VirtualBatchNorm1d(1024)
         self.lrelu10 = nn.LeakyReLU(negative_slope)
         self.conv11 = nn.Conv1d(1024, 2048, 31, 2, 15)  # 8 x 1024
-        self.vbn11 = nn.BatchNorm1d(2048)
+        self.vbn11 = VirtualBatchNorm1d(2048)
         self.lrelu11 = nn.LeakyReLU(negative_slope)
         # 1x1 size kernel for dimension and parameter reduction
         self.conv_final = nn.Conv1d(2048, 1, kernel_size=1, stride=1)  # 8 x 1
         self.lrelu_final = nn.LeakyReLU(negative_slope)
         self.sigmoid = nn.Sigmoid()
 
-    def forward(self, x):
+    def forward(self, x, ref_x):
+        # reference pass
+        ref_x = self.conv1(ref_x)
+        ref_x, mean1, meansq1 = self.vbn1(ref_x, None, None)
+        ref_x = self.lrelu1(ref_x)
+        ref_x = self.conv2(ref_x)
+        ref_x, mean2, meansq2 = self.vbn2(ref_x, None, None)
+        ref_x = self.lrelu2(ref_x)
+        ref_x = self.conv3(ref_x)
+        ref_x = self.dropout1(ref_x)
+        ref_x, mean3, meansq3 = self.vbn3(ref_x, None, None)
+        ref_x = self.lrelu3(ref_x)
+        ref_x = self.conv4(ref_x)
+        ref_x, mean4, meansq4 = self.vbn4(ref_x, None, None)
+        ref_x = self.lrelu4(ref_x)
+        ref_x = self.conv5(ref_x)
+        ref_x, mean5, meansq5 = self.vbn5(ref_x, None, None)
+        ref_x = self.lrelu5(ref_x)
+        ref_x = self.conv6(ref_x)
+        ref_x = self.dropout2(ref_x)
+        ref_x, mean6, meansq6 = self.vbn6(ref_x, None, None)
+        ref_x = self.lrelu6(ref_x)
+        ref_x = self.conv7(ref_x)
+        ref_x, mean7, meansq7 = self.vbn7(ref_x, None, None)
+        ref_x = self.lrelu7(ref_x)
+        ref_x = self.conv8(ref_x)
+        ref_x, mean8, meansq8 = self.vbn8(ref_x, None, None)
+        ref_x = self.lrelu8(ref_x)
+        ref_x = self.conv9(ref_x)
+        ref_x = self.dropout3(ref_x)
+        ref_x, mean9, meansq9 = self.vbn9(ref_x, None, None)
+        ref_x = self.lrelu9(ref_x)
+        ref_x = self.conv10(ref_x)
+        ref_x, mean10, meansq10 = self.vbn10(ref_x, None, None)
+        ref_x = self.lrelu10(ref_x)
+        ref_x = self.conv11(ref_x)
+        ref_x, mean11, meansq11 = self.vbn11(ref_x, None, None)
+        # further pass no longer needed
+
+        # train pass
         x = self.conv1(x)
-        x = self.vbn1(x)
+        x, _, _ = self.vbn1(x, mean1, meansq1)
         x = self.lrelu1(x)
         x = self.conv2(x)
-        x = self.vbn2(x)
+        x, _, _ = self.vbn2(x, mean2, meansq2)
         x = self.lrelu2(x)
         x = self.conv3(x)
         x = self.dropout1(x)
-        x = self.vbn3(x)
+        x, _, _ = self.vbn3(x, mean3, meansq3)
         x = self.lrelu3(x)
         x = self.conv4(x)
-        x = self.vbn4(x)
+        x, _, _ = self.vbn4(x, mean4, meansq4)
         x = self.lrelu4(x)
         x = self.conv5(x)
-        x = self.vbn5(x)
+        x, _, _ = self.vbn5(x, mean5, meansq5)
         x = self.lrelu5(x)
         x = self.conv6(x)
         x = self.dropout2(x)
-        x = self.vbn6(x)
+        x, _, _ = self.vbn6(x, mean6, meansq6)
         x = self.lrelu6(x)
         x = self.conv7(x)
-        x = self.vbn7(x)
+        x, _, _ = self.vbn7(x, mean7, meansq7)
         x = self.lrelu7(x)
         x = self.conv8(x)
-        x = self.vbn8(x)
+        x, _, _ = self.vbn8(x, mean8, meansq8)
         x = self.lrelu8(x)
         x = self.conv9(x)
         x = self.dropout3(x)
-        x = self.vbn9(x)
+        x, _, _ = self.vbn9(x, mean9, meansq9)
         x = self.lrelu9(x)
         x = self.conv10(x)
-        x = self.vbn10(x)
+        x, _, _ = self.vbn10(x, mean10, meansq10)
         x = self.lrelu10(x)
         x = self.conv11(x)
-        x = self.vbn11(x)
+        x, _, _ = self.vbn11(x, mean11, meansq11)
         x = self.lrelu11(x)
         x = self.conv_final(x)
         x = self.lrelu_final(x)
@@ -249,20 +288,29 @@ def split_pair_to_vars(sample_batch_pair):
         return batch_pairs_var, clean_batch_var, noisy_batch_var
 
 
+def weights_init(module):
+    classname = module.__class__.__name__
+    if classname.find('Conv') != -1:
+        nn.init.xavier_normal(module.weight.data)
+
+
 ### SOME TRAINING PARAMETERS ###
 # batch size
-batch_size = 100
-learning_rate = 0.0002
+batch_size = 200
+d_learning_rate = 0.0001
+g_learning_rate = 0.0002
 g_lambda = 100  # regularizer for generator
 use_devices = [0, 1]
 
 
 # create D and G instances
 discriminator = torch.nn.DataParallel(Discriminator(), device_ids=use_devices).cuda()  # use GPU
+discriminator.apply(weights_init)  # initialize weights
 print(discriminator)
 print('Discriminator created')
 
 generator = torch.nn.DataParallel(Generator(batch_size), device_ids=use_devices).cuda()
+generator.apply(weights_init)
 # latent variable for generator
 z = Variable(torch.rand((batch_size, 1024, 8)).cuda(), requires_grad=True)
 print(generator)
@@ -279,14 +327,18 @@ random_data_loader = DataLoader(
         pin_memory=True)
 print('DataLoader created')
 
+# generate reference batch
+ref_batch_pairs = sample_generator.reference_batch(batch_size)
+ref_batch_var, ref_clean_var, ref_noisy_var = split_pair_to_vars(ref_batch_pairs)
+
 # test samples for generation
 test_noise_filenames, fixed_test_noise = sample_generator.fixed_test_audio(batch_size)
 fixed_test_noise = Variable(torch.from_numpy(fixed_test_noise))
 print('Test samples loaded')
 
 # optimizers
-g_optimizer = optim.RMSprop(generator.parameters(), lr=learning_rate)
-d_optimizer = optim.RMSprop(discriminator.parameters(), lr=learning_rate)
+g_optimizer = optim.RMSprop(generator.parameters(), lr=g_learning_rate)
+d_optimizer = optim.RMSprop(discriminator.parameters(), lr=d_learning_rate)
 
 
 ### Train! ###
@@ -300,13 +352,13 @@ for epoch in range(40):
         ##### TRAIN D #####
         ##### TRAIN D to recognize clean audio as clean
         # training batch pass
-        outputs = discriminator(batch_pairs_var)  # output : [40 x 1 x 8]
+        outputs = discriminator(batch_pairs_var, ref_batch_var)  # output : [40 x 1 x 8]
         clean_loss = torch.mean((outputs - 1.0) ** 2)  # L2 loss - we want them all to be 1
 
         ##### TRAIN D to recognize generated audio as noisy
         generated_outputs = generator(noisy_batch_var, z)
         disc_in_pair = torch.cat((generated_outputs, noisy_batch_var), dim=1)
-        outputs = discriminator(disc_in_pair)
+        outputs = discriminator(disc_in_pair, ref_batch_var)
 
         noisy_loss = torch.mean(outputs ** 2)  # L2 loss - we want them all to be 0
         # backprop + optimize
@@ -320,7 +372,7 @@ for epoch in range(40):
         ##### TRAIN G so that D recognizes G(z) as real
         generated_outputs = generator(noisy_batch_var, z)
         gen_noise_pair = torch.cat((generated_outputs, noisy_batch_var), dim=1)
-        outputs = discriminator(gen_noise_pair)
+        outputs = discriminator(gen_noise_pair, ref_batch_var)
 
         g_loss_ = 0.5 * torch.mean((outputs - 1.0) ** 2)
         # L1 loss between generated output and clean sample
