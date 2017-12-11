@@ -350,12 +350,12 @@ for epoch in range(40):
         batch_pairs_var, clean_batch_var, noisy_batch_var = split_pair_to_vars(sample_batch_pairs)
 
         ##### TRAIN D #####
-        ##### TRAIN D to recognize clean audio as clean
+        # TRAIN D to recognize clean audio as clean
         # training batch pass
         outputs = discriminator(batch_pairs_var, ref_batch_var)  # output : [40 x 1 x 8]
         clean_loss = torch.mean((outputs - 1.0) ** 2)  # L2 loss - we want them all to be 1
 
-        ##### TRAIN D to recognize generated audio as noisy
+        # TRAIN D to recognize generated audio as noisy
         generated_outputs = generator(noisy_batch_var, z)
         disc_in_pair = torch.cat((generated_outputs, noisy_batch_var), dim=1)
         outputs = discriminator(disc_in_pair, ref_batch_var)
@@ -369,7 +369,7 @@ for epoch in range(40):
         d_optimizer.step()  # update parameters
 
         ##### TRAIN G #####
-        ##### TRAIN G so that D recognizes G(z) as real
+        # TRAIN G so that D recognizes G(z) as real
         generated_outputs = generator(noisy_batch_var, z)
         gen_noise_pair = torch.cat((generated_outputs, noisy_batch_var), dim=1)
         outputs = discriminator(gen_noise_pair, ref_batch_var)
@@ -389,7 +389,9 @@ for epoch in range(40):
         # print message per 10 steps
         if (i + 1) % 10 == 0:
             print('Epoch {}, Step {}, d_clean_loss {}, d_noisy_loss {}, g_loss {}, g_loss_cond {}'
-                    .format(epoch + 1, i + 1, clean_loss.data[0], noisy_loss.data[0], g_loss.data[0], g_gennoise_dist.data[0]))
+                    .format(
+                        epoch + 1, i + 1, clean_loss.data[0],
+                        noisy_loss.data[0], g_loss.data[0], g_gennoise_dist.data[0]))
 
         # save sampled audio at the beginning of each epoch
         if i == 0:
@@ -397,7 +399,8 @@ for epoch in range(40):
             fake_speech_data = fake_speech.data.cpu().numpy()  # convert to numpy array
             for idx in range(4):
                 generated_sample = fake_speech_data[idx]
-                filepath = os.path.join(gen_data_path, '{}_e{}.wav'.format(test_noise_filenames[idx], epoch + 1))
+                filepath = os.path.join(
+                        gen_data_path, '{}_e{}.wav'.format(test_noise_filenames[idx], epoch + 1))
                 wavfile.write(filepath, 16000, generated_sample.T)
 
     # save the model parameters for each epoch

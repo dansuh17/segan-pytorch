@@ -1,7 +1,20 @@
+# python
 __pycache__/
+# python virtual environment
+venv/
+
+# project specifics
 log/
 gen_data*/
+models/
+
+# swap files for vi editor
 *.swo
 *.swp
-models/
-gen_data_v2/
+
+# IntelliJ IDEA users
+.idea/
+
+# OSX
+.DS_Store
+
