@@ -392,6 +392,7 @@ for epoch in range(40):
                     .format(
                         epoch + 1, i + 1, clean_loss.data[0],
                         noisy_loss.data[0], g_loss.data[0], g_gennoise_dist.data[0]))
+            print('Weight for latent variable z : {}'.format(z))
 
         # save sampled audio at the beginning of each epoch
         if i == 0:
