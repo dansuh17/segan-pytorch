@@ -204,7 +204,7 @@ class Generator(nn.Module):
         # each decoder output are concatenated with homolgous encoder output,
         # so the feature map sizes are doubled
         self.dec10 = nn.ConvTranspose1d(in_channels=2048, out_channels=512, kernel_size=32, stride=2, padding=15)
-        self.dec10_nl = nn.PReLU()  # out : [B x 512 x 16]
+        self.dec10_nl = nn.PReLU()  # out : [B x 512 x 16] -> (concat) [B x 1024 x 16]
         self.dec9 = nn.ConvTranspose1d(1024, 256, 32, 2, 15)  # [B x 256 x 32]
         self.dec9_nl = nn.PReLU()
         self.dec8 = nn.ConvTranspose1d(512, 256, 32, 2, 15)  # [B x 256 x 64]
@@ -224,6 +224,7 @@ class Generator(nn.Module):
         self.dec1 = nn.ConvTranspose1d(64, 16, 32, 2, 15)  # [B x 16 x 8192]
         self.dec1_nl = nn.PReLU()
         self.dec_final = nn.ConvTranspose1d(32, 1, 32, 2, 15)  # [B x 1 x 16384]
+        self.dec_tanh = nn.Tanh()
 
     def forward(self, x, z):
         """
@@ -273,7 +274,7 @@ class Generator(nn.Module):
         d2_c = self.dec2_nl(torch.cat((d2, e2), dim=1))
         d1 = self.dec1(d2_c)
         d1_c = self.dec1_nl(torch.cat((d1, e1), dim=1))
-        out = self.dec_final(d1_c)
+        out = self.dec_tanh(self.dec_final(d1_c))
         return out
 
 
@@ -298,7 +299,7 @@ def weights_init(module):
 # batch size
 batch_size = 200
 d_learning_rate = 0.0001
-g_learning_rate = 0.0002
+g_learning_rate = 0.0001
 g_lambda = 100  # regularizer for generator
 use_devices = [0, 1]
 
@@ -311,8 +312,6 @@ print('Discriminator created')
 
 generator = torch.nn.DataParallel(Generator(batch_size), device_ids=use_devices).cuda()
 generator.apply(weights_init)
-# latent variable for generator
-z = Variable(torch.rand((batch_size, 1024, 8)).cuda(), requires_grad=True)
 print(generator)
 print('Generator created')
 
@@ -349,40 +348,45 @@ for epoch in range(40):
         # batch of combined pairs, clean signals, and noisy signals
         batch_pairs_var, clean_batch_var, noisy_batch_var = split_pair_to_vars(sample_batch_pairs)
 
+        # latent vector
+        z = Variable(torch.rand((batch_size, 1024, 8)).cuda())
+
         ##### TRAIN D #####
         # TRAIN D to recognize clean audio as clean
         # training batch pass
+        discriminator.zero_grad()
         outputs = discriminator(batch_pairs_var, ref_batch_var)  # output : [40 x 1 x 8]
         clean_loss = torch.mean((outputs - 1.0) ** 2)  # L2 loss - we want them all to be 1
+        clean_loss.backward()
 
         # TRAIN D to recognize generated audio as noisy
         generated_outputs = generator(noisy_batch_var, z)
         disc_in_pair = torch.cat((generated_outputs, noisy_batch_var), dim=1)
         outputs = discriminator(disc_in_pair, ref_batch_var)
-
         noisy_loss = torch.mean(outputs ** 2)  # L2 loss - we want them all to be 0
+        noisy_loss.backward()
+
         # backprop + optimize
-        d_loss = clean_loss + noisy_loss
-        discriminator.zero_grad()
-        generator.zero_grad()
-        d_loss.backward()  # perform single backpropagation
+        # d_loss = clean_loss + noisy_loss
+        # d_loss.backward()  # perform single backpropagation
         d_optimizer.step()  # update parameters
 
         ##### TRAIN G #####
         # TRAIN G so that D recognizes G(z) as real
+        generator.zero_grad()
         generated_outputs = generator(noisy_batch_var, z)
         gen_noise_pair = torch.cat((generated_outputs, noisy_batch_var), dim=1)
         outputs = discriminator(gen_noise_pair, ref_batch_var)
+        print(generated_outputs)
 
         g_loss_ = 0.5 * torch.mean((outputs - 1.0) ** 2)
         # L1 loss between generated output and clean sample
         l1_dist = torch.abs(torch.add(generated_outputs, torch.neg(clean_batch_var)))
         g_cond_loss = g_lambda * torch.mean(l1_dist)  # conditional loss
+        print(g_cond_loss)
         g_loss = g_loss_ + g_cond_loss
 
         # backprop + optimize
-        generator.zero_grad()
-        discriminator.zero_grad()
         g_loss.backward()
         g_optimizer.step()
 
@@ -391,9 +395,10 @@ for epoch in range(40):
             print('Epoch {}, Step {}, d_clean_loss {}, d_noisy_loss {}, g_loss {}, g_loss_cond {}'
                     .format(
                         epoch + 1, i + 1, clean_loss.data[0],
-                        noisy_loss.data[0], g_loss.data[0], g_gennoise_dist.data[0]))
-            print('Weight for latent variable z : {}'.format(z))
-            print('Generated Outputs : {}'.format(outputs))
+                        noisy_loss.data[0], g_loss.data[0], g_cond_loss.data[0]))
+            # print('Weight for latent variable z : {}'.format(z))
+            print('Generated Outputs : {}'.format(generated_outputs))
+            # print('Encoding 8th layer weight: {}'.format(generator.module.enc8.weight))
 
         # save sampled audio at the beginning of each epoch
         if i == 0:
