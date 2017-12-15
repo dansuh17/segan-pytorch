@@ -377,8 +377,8 @@ for epoch in range(40):
         g_loss_ = 0.5 * torch.mean((outputs - 1.0) ** 2)
         # L1 loss between generated output and clean sample
         l1_dist = torch.abs(torch.add(generated_outputs, torch.neg(clean_batch_var)))
-        g_gennoise_dist = g_lambda * torch.mean(l1_dist)
-        g_loss = g_loss_ + g_gennoise_dist
+        g_cond_loss = g_lambda * torch.mean(l1_dist)  # conditional loss
+        g_loss = g_loss_ + g_cond_loss
 
         # backprop + optimize
         generator.zero_grad()
@@ -393,6 +393,7 @@ for epoch in range(40):
                         epoch + 1, i + 1, clean_loss.data[0],
                         noisy_loss.data[0], g_loss.data[0], g_gennoise_dist.data[0]))
             print('Weight for latent variable z : {}'.format(z))
+            print('Generated Outputs : {}'.format(outputs))
 
         # save sampled audio at the beginning of each epoch
         if i == 0:
