@@ -1,4 +1,6 @@
 # Pytorch Implementation of SEGAN (Speech Enhancement GAN)
+Implementation of [SEGAN](https://arxiv.org/abs/1703.09452) by Pascual et al., using pytorch.
+Original Tensorflow version can be found [here](https://github.com/santi-pdp/segan).
 
 ## Prerequisites
 
@@ -12,10 +14,12 @@
 
 `pip install -r requirements.txt`
 
-## Preprocessing
+## Data Preprocessing
 
-__TBD__
+Use `data_preprocess.py` file to preprocess downloaded data. Uncomment functions in `__main__` to perform desired preprocessing stage.
 
 ## Training
 
 `python model.py`
+
+Again, fix datapaths in `model.py` by your needs.
