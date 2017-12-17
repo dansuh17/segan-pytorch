@@ -23,7 +23,7 @@ noisy_train_foldername = 'noisy_trainset_wav/noisy_trainset_56spk_wav'
 out_clean_train_fdrnm = 'clean_trainset_wav_16k'
 out_noisy_train_fdrnm = 'noisy_trainset_wav_16k'
 ser_data_fdrnm = 'ser_data'  # serialized data
-gen_data_fdrnm = 'gen_data_v4'  # folder for saving generated data
+gen_data_fdrnm = 'gen_data_v5'  # folder for saving generated data
 model_fdrnm = 'models'  # folder for saving models
 
 # create folder for generated data
@@ -38,9 +38,7 @@ if not os.path.exists(models_path):
 
 
 class Discriminator(nn.Module):
-    """
-    D
-    """
+    """D"""
     def __init__(self, dropout_drop=0.5):
         super().__init__()
         # Define convolution operations.
@@ -88,7 +86,25 @@ class Discriminator(nn.Module):
         self.lrelu_final = nn.LeakyReLU(negative_slope)
         self.sigmoid = nn.Sigmoid()
 
+        # initialize weights
+        self.init_weights()
+
+    def init_weights(self):
+        """
+        Initialize weights for convolution layers using Xavier initialization.
+        """
+        for m in self.modules():
+            if isinstance(m, nn.Conv1d):
+                nn.init.xavier_normal(m.weight.data)
+
     def forward(self, x, ref_x):
+        """
+        Forward pass of discriminator.
+
+        Args:
+            x: batch
+            ref_x: reference batch for virtual batch norm
+        """
         # reference pass
         ref_x = self.conv1(ref_x)
         ref_x, mean1, meansq1 = self.vbn1(ref_x, None, None)
@@ -170,9 +186,7 @@ class Discriminator(nn.Module):
 
 
 class Generator(nn.Module):
-    """
-    G
-    """
+    """G"""
     def __init__(self, batch_size):
         super().__init__()
         # size notations = [batch_size x feature_maps x width] (height omitted - 1D convolutions)
@@ -226,12 +240,23 @@ class Generator(nn.Module):
         self.dec_final = nn.ConvTranspose1d(32, 1, 32, 2, 15)  # [B x 1 x 16384]
         self.dec_tanh = nn.Tanh()
 
+        # initialize weights
+        self.init_weights()
+
+    def init_weights(self):
+        """
+        Initialize weights for convolution layers using Xavier initialization.
+        """
+        for m in self.modules():
+            if isinstance(m, nn.Conv1d) or isinstance(m, nn.ConvTranspose1d):
+                nn.init.xavier_normal(m.weight.data)
+
     def forward(self, x, z):
         """
         Forward pass of generator.
 
         Args:
-            x: input data (signal)
+            x: input batch (signal)
             z: latent vector
         """
         ### encoding step
@@ -279,20 +304,30 @@ class Generator(nn.Module):
 
 
 def split_pair_to_vars(sample_batch_pair):
-        # preemphasis
-        sample_batch_pair = emph.pre_emphasis(sample_batch_pair.numpy(), emph_coeff=0.95)
-        batch_pairs_var = Variable(torch.from_numpy(sample_batch_pair).type(torch.FloatTensor)).cuda()  # [40 x 2 x 16384]
-        clean_batch = np.stack([pair[0].reshape(1, -1) for pair in sample_batch_pair])
-        clean_batch_var = Variable(torch.from_numpy(clean_batch).type(torch.FloatTensor)).cuda()
-        noisy_batch = np.stack([pair[1].reshape(1, -1) for pair in sample_batch_pair])
-        noisy_batch_var = Variable(torch.from_numpy(noisy_batch).type(torch.FloatTensor)).cuda()
-        return batch_pairs_var, clean_batch_var, noisy_batch_var
+    """
+    Splits the generated batch data and creates combination of pairs.
+    Input argument sample_batch_pair consists of a batch_size number of
+    [clean_signal, noisy_signal] pairs.
 
+    This function creates three pytorch Variables - a clean_signal, noisy_signal pair,
+    clean signal only, and noisy signal only.
+    It goes through preemphasis preprocessing before converted into variable.
 
-def weights_init(module):
-    classname = module.__class__.__name__
-    if classname.find('Conv') != -1:
-        nn.init.xavier_normal(module.weight.data)
+    Args:
+        sample_batch_pair(torch.Tensor): batch of [clean_signal, noisy_signal] pairs
+    Returns:
+        batch_pairs_var(Variable): batch of pairs containing clean signal and noisy signal
+        clean_batch_var(Variable): clean signal batch
+        noisy_batch_var(Varialbe): noisy signal batch
+    """
+    # preemphasis
+    sample_batch_pair = emph.pre_emphasis(sample_batch_pair.numpy(), emph_coeff=0.95)
+    batch_pairs_var = Variable(torch.from_numpy(sample_batch_pair).type(torch.FloatTensor)).cuda()  # [40 x 2 x 16384]
+    clean_batch = np.stack([pair[0].reshape(1, -1) for pair in sample_batch_pair])
+    clean_batch_var = Variable(torch.from_numpy(clean_batch).type(torch.FloatTensor)).cuda()
+    noisy_batch = np.stack([pair[1].reshape(1, -1) for pair in sample_batch_pair])
+    noisy_batch_var = Variable(torch.from_numpy(noisy_batch).type(torch.FloatTensor)).cuda()
+    return batch_pairs_var, clean_batch_var, noisy_batch_var
 
 
 ### SOME TRAINING PARAMETERS ###
@@ -302,16 +337,16 @@ d_learning_rate = 0.0001
 g_learning_rate = 0.0001
 g_lambda = 100  # regularizer for generator
 use_devices = [0, 1]
+sample_rate = 16000
+torch.cuda.manual_seed_all(5)  # fix random seed
 
 
 # create D and G instances
 discriminator = torch.nn.DataParallel(Discriminator(), device_ids=use_devices).cuda()  # use GPU
-discriminator.apply(weights_init)  # initialize weights
 print(discriminator)
 print('Discriminator created')
 
 generator = torch.nn.DataParallel(Generator(batch_size), device_ids=use_devices).cuda()
-generator.apply(weights_init)
 print(generator)
 print('Generator created')
 
@@ -342,14 +377,14 @@ d_optimizer = optim.RMSprop(discriminator.parameters(), lr=d_learning_rate)
 
 ### Train! ###
 print('Starting Training...')
-for epoch in range(40):
+for epoch in range(86):
     for i, sample_batch_pairs in enumerate(random_data_loader):
         # using the sample batch pair, split into
         # batch of combined pairs, clean signals, and noisy signals
         batch_pairs_var, clean_batch_var, noisy_batch_var = split_pair_to_vars(sample_batch_pairs)
 
-        # latent vector
-        z = Variable(torch.rand((batch_size, 1024, 8)).cuda())
+        # latent vector - normal distribution
+        z = Variable(nn.init.normal(torch.Tensor(batch_size, 1024, 8))).cuda()
 
         ##### TRAIN D #####
         # TRAIN D to recognize clean audio as clean
@@ -366,9 +401,7 @@ for epoch in range(40):
         noisy_loss = torch.mean(outputs ** 2)  # L2 loss - we want them all to be 0
         noisy_loss.backward()
 
-        # backprop + optimize
         # d_loss = clean_loss + noisy_loss
-        # d_loss.backward()  # perform single backpropagation
         d_optimizer.step()  # update parameters
 
         ##### TRAIN G #####
@@ -377,13 +410,11 @@ for epoch in range(40):
         generated_outputs = generator(noisy_batch_var, z)
         gen_noise_pair = torch.cat((generated_outputs, noisy_batch_var), dim=1)
         outputs = discriminator(gen_noise_pair, ref_batch_var)
-        print(generated_outputs)
 
         g_loss_ = 0.5 * torch.mean((outputs - 1.0) ** 2)
         # L1 loss between generated output and clean sample
         l1_dist = torch.abs(torch.add(generated_outputs, torch.neg(clean_batch_var)))
         g_cond_loss = g_lambda * torch.mean(l1_dist)  # conditional loss
-        print(g_cond_loss)
         g_loss = g_loss_ + g_cond_loss
 
         # backprop + optimize
@@ -397,7 +428,7 @@ for epoch in range(40):
                         epoch + 1, i + 1, clean_loss.data[0],
                         noisy_loss.data[0], g_loss.data[0], g_cond_loss.data[0]))
             # print('Weight for latent variable z : {}'.format(z))
-            print('Generated Outputs : {}'.format(generated_outputs))
+            # print('Generated Outputs : {}'.format(generated_outputs))
             # print('Encoding 8th layer weight: {}'.format(generator.module.enc8.weight))
 
         # save sampled audio at the beginning of each epoch
@@ -408,7 +439,7 @@ for epoch in range(40):
                 generated_sample = fake_speech_data[idx]
                 filepath = os.path.join(
                         gen_data_path, '{}_e{}.wav'.format(test_noise_filenames[idx], epoch + 1))
-                wavfile.write(filepath, 16000, generated_sample.T)
+                wavfile.write(filepath, sample_rate, generated_sample.T)
 
     # save the model parameters for each epoch
     g_path = os.path.join(models_path, 'generator-{}.pkl'.format(epoch + 1))
