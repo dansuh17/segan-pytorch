@@ -1,5 +1,5 @@
 # Pytorch Implementation of SEGAN (Speech Enhancement GAN)
-Implementation of [SEGAN](https://arxiv.org/abs/1703.09452) by Pascual et al., using pytorch.
+Implementation of [SEGAN](https://arxiv.org/abs/1703.09452) by Pascual et al. in 2017, using pytorch.
 Original Tensorflow version can be found [here](https://github.com/santi-pdp/segan).
 
 ## Prerequisites
@@ -16,10 +16,20 @@ Original Tensorflow version can be found [here](https://github.com/santi-pdp/seg
 
 ## Data Preprocessing
 
-Use `data_preprocess.py` file to preprocess downloaded data. Uncomment functions in `__main__` to perform desired preprocessing stage.
+Use `data_preprocess.py` file to preprocess downloaded data. 
+Adjust the file paths at the beginning of the file to properly locate the data files, output folder, etc.
+Uncomment functions in `__main__` to perform desired preprocessing stage.
+
+Data preprocessing consists of three main stages:
+1. Downsampling - downsample original audio files (48k) to sampling rate of 16000.
+2. Serialization - Splitting the audio files into 2^14-sample (about 1 second) snippets.
+3. Verification - whether it contains proper number of samples.
+
+Note that the second stage takes a fairly long time - more than an hour.
 
 ## Training
 
 `python model.py`
 
-Again, fix datapaths in `model.py` by your needs.
+Again, fix and adjust datapaths in `model.py` by your needs.
+Especially, provide accurate path to where serialized data are stored.
