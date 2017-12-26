@@ -135,5 +135,5 @@ if __name__ == '__main__':
     Uncomment each function call that suits your needs.
     """
     # downsample_16k()
-    process_and_serialize()  #!! takes very long time - about 5000s
-    data_verify()
+    # process_and_serialize()  # WARNING - takes very long time
+    # data_verify()

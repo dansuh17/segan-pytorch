@@ -427,6 +427,7 @@ for epoch in range(86):
                     .format(
                         epoch + 1, i + 1, clean_loss.data[0],
                         noisy_loss.data[0], g_loss.data[0], g_cond_loss.data[0]))
+            ### Functions below print various information about the network. Uncomment to use.
             # print('Weight for latent variable z : {}'.format(z))
             # print('Generated Outputs : {}'.format(generated_outputs))
             # print('Encoding 8th layer weight: {}'.format(generator.module.enc8.weight))
@@ -435,7 +436,9 @@ for epoch in range(86):
         if i == 0:
             fake_speech = generator(fixed_test_noise, z)
             fake_speech_data = fake_speech.data.cpu().numpy()  # convert to numpy array
-            for idx in range(4):
+            fake_speech_data = emph.de_emphasis(fake_speech_data, emph_coeff=0.95)
+
+            for idx in range(4):  # select four samples
                 generated_sample = fake_speech_data[idx]
                 filepath = os.path.join(
                         gen_data_path, '{}_e{}.wav'.format(test_noise_filenames[idx], epoch + 1))

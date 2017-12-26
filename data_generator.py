@@ -22,6 +22,16 @@ class AudioSampleGenerator(data.Dataset):
         self.num_data = len(self.filepaths)
 
     def reference_batch(self, batch_size):
+        """
+        Randomly selects a reference batch from dataset.
+        Reference batch is used for calculating statistics for virtual batch normalization operation.
+
+        Args:
+            batch_size(int): batch size
+
+        Returns:
+            ref_batch: reference batch
+        """
         ref_filenames = np.random.choice(self.filepaths, batch_size)
         ref_batch = torch.from_numpy(np.stack([np.load(f) for f in ref_filenames]))
         return ref_batch
