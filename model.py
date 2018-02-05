@@ -84,8 +84,8 @@ class Discriminator(nn.Module):
         # 1x1 size kernel for dimension and parameter reduction
         self.conv_final = nn.Conv1d(2048, 1, kernel_size=1, stride=1)  # 8 x 1
         self.lrelu_final = nn.LeakyReLU(negative_slope)
+        self.fully_connected = nn.Linear(in_features=8, out_features=1)  # 1
         self.sigmoid = nn.Sigmoid()
-
         # initialize weights
         self.init_weights()
 
@@ -182,6 +182,9 @@ class Discriminator(nn.Module):
         x = self.lrelu11(x)
         x = self.conv_final(x)
         x = self.lrelu_final(x)
+        # reduce down to a scalar value
+        x = torch.squeeze(x)
+        x = self.fully_connected(x)
         return self.sigmoid(x)
 
 
