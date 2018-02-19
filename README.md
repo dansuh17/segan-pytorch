@@ -5,9 +5,9 @@ Original Tensorflow version can be found [here](https://github.com/santi-pdp/seg
 ## Prerequisites
 
 - python v3.5.2 or higher
-- pytorch v0.3.0
+- pytorch v0.3.0 (other versions not tested)
 - CUDA preferred
-- dataset downloaded from [here](https://datashare.is.ed.ac.uk/handle/10283/2791)
+- noisy speech dataset downloaded from [here](https://datashare.is.ed.ac.uk/handle/10283/2791)
 - libraries specified in `requirements.txt`
 
 ### Installing Libraries
@@ -31,5 +31,5 @@ Note that the second stage takes a fairly long time - more than an hour.
 
 `python model.py`
 
-Again, fix and adjust datapaths in `model.py` by your needs.
+Again, fix and adjust datapaths in `model.py` according to your needs.
 Especially, provide accurate path to where serialized data are stored.
