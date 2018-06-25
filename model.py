@@ -1,7 +1,13 @@
+"""
+Here we define the discriminator and generator for SEGAN.
+After definition of each modules, run the training.
+"""
+
+import time
+import os
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import os
 import numpy as np
 import emph
 from torch.utils.data import DataLoader
@@ -11,28 +17,24 @@ from data_generator import AudioSampleGenerator
 from scipy.io import wavfile
 from vbnorm import VirtualBatchNorm1d
 
-"""
-Here we define the discriminator and generator for SEGAN.
-After definition of each modules, run the training.
-"""
 
 # define folders for data
-data_path = '../data/segan'
-clean_train_foldername = 'clean_trainset_wav/clean_trainset_56spk_wav'
-noisy_train_foldername = 'noisy_trainset_wav/noisy_trainset_56spk_wav'
-out_clean_train_fdrnm = 'clean_trainset_wav_16k'
-out_noisy_train_fdrnm = 'noisy_trainset_wav_16k'
-ser_data_fdrnm = 'ser_data'  # serialized data
-gen_data_fdrnm = 'gen_data_v5'  # folder for saving generated data
-model_fdrnm = 'models'  # folder for saving models
+in_path = 'segan_data_in'
+ser_data_fdr = 'ser_data'  # serialized data
+out_path = 'segan_data_out'
+gen_data_fdr = 'gen_data'  # folder for saving generated data
+model_fdr = 'models'  # folder for saving models
+# time info is used to distinguish dfferent training sessions
+run_time = time.strftime('%Y%m%d_%H%M', time.gmtime())  # 20180625_1742
+
 
 # create folder for generated data
-gen_data_path = os.path.join(os.getcwd(), gen_data_fdrnm)
+gen_data_path = os.path.join(os.getcwd(), out_path, run_time, gen_data_fdr)
 if not os.path.exists(gen_data_path):
     os.makedirs(gen_data_path)
 
 # create folder for model checkpoints
-models_path = os.path.join(os.getcwd(), model_fdrnm)
+models_path = os.path.join(os.getcwd(), out_path, run_time, model_fdr)
 if not os.path.exists(models_path):
     os.makedirs(models_path)
 
@@ -55,7 +57,7 @@ class Discriminator(nn.Module):
         self.dropout1 = nn.Dropout(dropout_drop)
         self.vbn3 = VirtualBatchNorm1d(64)
         self.lrelu3 = nn.LeakyReLU(negative_slope)
-        self.conv4 = nn.Conv1d(64, 128, 31, 2, 15) # 1024 x 128
+        self.conv4 = nn.Conv1d(64, 128, 31, 2, 15)  # 1024 x 128
         self.vbn4 = VirtualBatchNorm1d(128)
         self.lrelu4 = nn.LeakyReLU(negative_slope)
         self.conv5 = nn.Conv1d(128, 128, 31, 2, 15)  # 512 x 128
@@ -354,7 +356,7 @@ print(generator)
 print('Generator created')
 
 # This is how you define a data loader
-sample_generator = AudioSampleGenerator(os.path.join(data_path, ser_data_fdrnm))
+sample_generator = AudioSampleGenerator(os.path.join(in_path, ser_data_fdr))
 random_data_loader = DataLoader(
         dataset=sample_generator,
         batch_size=batch_size,  # specified batch size here
