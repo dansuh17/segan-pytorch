@@ -21,7 +21,7 @@ class VirtualBatchNorm1d(Module):
         self.ref_mean_sq = self.register_parameter('ref_mean_sq', None)
 
         # define gamma and beta parameters
-        gamma = torch.normal(means=torch.ones(1, num_features, 1), std=0.02)
+        gamma = torch.normal(mean=torch.ones(1, num_features, 1), std=0.02)
         self.gamma = Parameter(gamma.float().cuda(async=True))
         self.beta = Parameter(torch.cuda.FloatTensor(1, num_features, 1).fill_(0))
 

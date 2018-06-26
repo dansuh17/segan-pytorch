@@ -18,3 +18,11 @@ models/
 # OSX
 .DS_Store
 
+# data paths
+segan_data_in/
+
+# c3dl-specific (navercorp)
+run.sh
+segan.json
+train.sh
+user_dev_workspace/
