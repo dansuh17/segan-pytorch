@@ -20,8 +20,8 @@ from vbnorm import VirtualBatchNorm1d
 
 # define folders for data
 in_path = 'segan_data_in'
-ser_data_fdr = 'ser_data'  # serialized data
 out_path = 'segan_data_out'
+ser_data_fdr = 'ser_data'  # serialized data
 gen_data_fdr = 'gen_data'  # folder for saving generated data
 model_fdr = 'models'  # folder for saving models
 # time info is used to distinguish dfferent training sessions
@@ -97,7 +97,7 @@ class Discriminator(nn.Module):
         """
         for m in self.modules():
             if isinstance(m, nn.Conv1d):
-                nn.init.xavier_normal(m.weight.data)
+                nn.init.xavier_normal_(m.weight.data)
 
     def forward(self, x, ref_x):
         """
@@ -254,7 +254,7 @@ class Generator(nn.Module):
         """
         for m in self.modules():
             if isinstance(m, nn.Conv1d) or isinstance(m, nn.ConvTranspose1d):
-                nn.init.xavier_normal(m.weight.data)
+                nn.init.xavier_normal_(m.weight.data)
 
     def forward(self, x, z):
         """
@@ -389,7 +389,7 @@ for epoch in range(86):
         batch_pairs_var, clean_batch_var, noisy_batch_var = split_pair_to_vars(sample_batch_pairs)
 
         # latent vector - normal distribution
-        z = Variable(nn.init.normal(torch.Tensor(batch_size, 1024, 8))).cuda()
+        z = Variable(nn.init.normal_(torch.Tensor(batch_size, 1024, 8))).cuda()
 
         ##### TRAIN D #####
         # TRAIN D to recognize clean audio as clean
@@ -429,9 +429,8 @@ for epoch in range(86):
         # print message per 10 steps
         if (i + 1) % 10 == 0:
             print('Epoch {}, Step {}, d_clean_loss {}, d_noisy_loss {}, g_loss {}, g_loss_cond {}'
-                    .format(
-                        epoch + 1, i + 1, clean_loss.data[0],
-                        noisy_loss.data[0], g_loss.data[0], g_cond_loss.data[0]))
+                  .format(epoch + 1, i + 1, clean_loss.item(),
+                          noisy_loss.item(), g_loss.item(), g_cond_loss.item()))
             ### Functions below print various information about the network. Uncomment to use.
             # print('Weight for latent variable z : {}'.format(z))
             # print('Generated Outputs : {}'.format(generated_outputs))
