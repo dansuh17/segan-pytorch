@@ -5,12 +5,12 @@ Original Tensorflow version can be found [here](https://github.com/santi-pdp/seg
 ## Prerequisites
 
 - python v3.5.2 or higher
-- pytorch v0.3.0 (other versions not tested)
+- pytorch v0.4.0
 - CUDA preferred
 - noisy speech dataset downloaded from [here](https://datashare.is.ed.ac.uk/handle/10283/2791)
 - libraries specified in `requirements.txt`
 
-### Installing Libraries
+### Installing Required Libraries
 
 `pip install -r requirements.txt`
 
@@ -29,7 +29,23 @@ Note that the second stage takes a fairly long time - more than an hour.
 
 ## Training
 
-`python model.py`
+```
+python model.py
+```
 
 Again, fix and adjust datapaths in `model.py` according to your needs.
 Especially, provide accurate path to where serialized data are stored.
+
+## Using Tensorboard
+
+In order to use tensorboard, you need to first install tensorboard:
+
+```
+pip install tensorboard
+```
+
+Then run tensorboard by specifing the log directory.
+
+```
+tensorboard --logdir=segan_data_out/tblogs
+```

@@ -13,28 +13,33 @@ import emph
 from torch.utils.data import DataLoader
 from torch import optim
 from torch.autograd import Variable
-from data_generator import AudioSampleGenerator
 from scipy.io import wavfile
+from data_generator import AudioSampleGenerator
 from vbnorm import VirtualBatchNorm1d
+from tensorboardX import SummaryWriter
 
 
-# define folders for data
+# define folders for output data
 in_path = 'segan_data_in'
-out_path = 'segan_data_out'
+out_path_root = 'segan_data_out'
 ser_data_fdr = 'ser_data'  # serialized data
 gen_data_fdr = 'gen_data'  # folder for saving generated data
 model_fdr = 'models'  # folder for saving models
+tblog_fdr = 'tblogs'  # summary data for tensorboard
 # time info is used to distinguish dfferent training sessions
 run_time = time.strftime('%Y%m%d_%H%M', time.gmtime())  # 20180625_1742
+# output path - all outputs (generated data, logs, model checkpoints) will be stored here
+# the directory structure is as: "[curr_dir]/segan_data_out/[run_time]/"
+out_path = os.path.join(os.getcwd(), out_path_root, run_time)
 
 
 # create folder for generated data
-gen_data_path = os.path.join(os.getcwd(), out_path, run_time, gen_data_fdr)
+gen_data_path = os.path.join(out_path, gen_data_fdr)
 if not os.path.exists(gen_data_path):
     os.makedirs(gen_data_path)
 
 # create folder for model checkpoints
-models_path = os.path.join(os.getcwd(), out_path, run_time, model_fdr)
+models_path = os.path.join(out_path, model_fdr)
 if not os.path.exists(models_path):
     os.makedirs(models_path)
 
@@ -341,7 +346,7 @@ batch_size = 200
 d_learning_rate = 0.0001
 g_learning_rate = 0.0001
 g_lambda = 100  # regularizer for generator
-use_devices = [0, 1]
+use_devices = [0, 1, 2, 3]
 sample_rate = 16000
 torch.cuda.manual_seed_all(5)  # fix random seed
 
@@ -379,9 +384,15 @@ print('Test samples loaded')
 g_optimizer = optim.RMSprop(generator.parameters(), lr=g_learning_rate)
 d_optimizer = optim.RMSprop(discriminator.parameters(), lr=d_learning_rate)
 
+# create tensorboard writer
+# The logs will be stored NOT under the run_time, but under segan_data_out/'tblog_fdr'.
+# This way, tensorboard can show graphs for each experiment in one board
+tbwriter = SummaryWriter(log_dir=os.path.join(out_path_root, tblog_fdr))
+print('TensorboardX summary writer created')
 
 ### Train! ###
 print('Starting Training...')
+total_steps = 1
 for epoch in range(86):
     for i, sample_batch_pairs in enumerate(random_data_loader):
         # using the sample batch pair, split into
@@ -426,7 +437,7 @@ for epoch in range(86):
         g_loss.backward()
         g_optimizer.step()
 
-        # print message per 10 steps
+        # print message and store logs per 10 steps
         if (i + 1) % 10 == 0:
             print('Epoch {}, Step {}, d_clean_loss {}, d_noisy_loss {}, g_loss {}, g_loss_cond {}'
                   .format(epoch + 1, i + 1, clean_loss.item(),
@@ -436,6 +447,13 @@ for epoch in range(86):
             # print('Generated Outputs : {}'.format(generated_outputs))
             # print('Encoding 8th layer weight: {}'.format(generator.module.enc8.weight))
 
+            # record scalar data for tensorboard
+            tbwriter.add_scalar('loss/d_clean_loss', clean_loss.item(), total_steps)
+            tbwriter.add_scalar('loss/d_noisy_loss', noisy_loss.item(), total_steps)
+            tbwriter.add_scalar('loss/g_loss', g_loss.item(), total_steps)
+            tbwriter.add_scalar('loss/g_conditional_loss', g_cond_loss.item(), total_steps)
+
+
         # save sampled audio at the beginning of each epoch
         if i == 0:
             fake_speech = generator(fixed_test_noise, z)
@@ -444,13 +462,21 @@ for epoch in range(86):
 
             for idx in range(4):  # select four samples
                 generated_sample = fake_speech_data[idx]
+                gen_fname = test_noise_filenames[idx]
                 filepath = os.path.join(
-                        gen_data_path, '{}_e{}.wav'.format(test_noise_filenames[idx], epoch + 1))
+                        gen_data_path, '{}_e{}.wav'.format(gen_fname, epoch + 1))
+                # write to file
                 wavfile.write(filepath, sample_rate, generated_sample.T)
+                # write for tensorboard log
+                tbwriter.add_audio(gen_fname, generated_sample.T, total_steps, sample_rate)
 
+        # increment total steps
+        total_steps += 1
+                
     # save the model parameters for each epoch
     g_path = os.path.join(models_path, 'generator-{}.pkl'.format(epoch + 1))
     d_path = os.path.join(models_path, 'discriminator-{}.pkl'.format(epoch + 1))
     torch.save(generator.state_dict(), g_path)
     torch.save(discriminator.state_dict(), d_path)
+tbwriter.close()
 print('Finished Training!')

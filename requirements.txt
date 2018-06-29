@@ -15,3 +15,5 @@ Pillow==5.1.0
 six==1.11.0
 torch==0.4.0
 torchvision==0.2.1
+protobuf==3.6.0
+tensorboardX==1.2
