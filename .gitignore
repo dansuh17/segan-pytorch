@@ -20,9 +20,11 @@ models/
 
 # data paths
 segan_data_in/
+segan_data_out/
 
 # c3dl-specific (navercorp)
 run.sh
 segan.json
 train.sh
 user_dev_workspace/
+run_attach.sh
