@@ -192,7 +192,8 @@ class Discriminator(nn.Module):
         # reduce down to a scalar value
         x = torch.squeeze(x)
         x = self.fully_connected(x)
-        return self.sigmoid(x)
+        # return self.sigmoid(x)
+        return x
 
 
 class Generator(nn.Module):
@@ -439,7 +440,7 @@ for epoch in range(86):
 
         # print message and store logs per 10 steps
         if (i + 1) % 10 == 0:
-            print('Epoch {}, Step {}, d_clean_loss {}, d_noisy_loss {}, g_loss {}, g_loss_cond {}'
+            print('Epoch {}\tStep {}\td_clean_loss {}\td_noisy_loss {}\tg_loss {}\tg_loss_cond {}'
                   .format(epoch + 1, i + 1, clean_loss.item(),
                           noisy_loss.item(), g_loss.item(), g_cond_loss.item()))
             ### Functions below print various information about the network. Uncomment to use.
