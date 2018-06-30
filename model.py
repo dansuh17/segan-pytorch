@@ -473,7 +473,7 @@ for epoch in range(86):
 
         # increment total steps
         total_steps += 1
-                
+
     # save the model parameters for each epoch
     g_path = os.path.join(models_path, 'generator-{}.pkl'.format(epoch + 1))
     d_path = os.path.join(models_path, 'discriminator-{}.pkl'.format(epoch + 1))
