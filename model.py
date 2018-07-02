@@ -25,12 +25,12 @@ out_path_root = 'segan_data_out'
 ser_data_fdr = 'ser_data'  # serialized data
 gen_data_fdr = 'gen_data'  # folder for saving generated data
 model_fdr = 'models'  # folder for saving models
-tblog_fdr = 'tblogs'  # summary data for tensorboard
 # time info is used to distinguish dfferent training sessions
 run_time = time.strftime('%Y%m%d_%H%M', time.gmtime())  # 20180625_1742
 # output path - all outputs (generated data, logs, model checkpoints) will be stored here
 # the directory structure is as: "[curr_dir]/segan_data_out/[run_time]/"
 out_path = os.path.join(os.getcwd(), out_path_root, run_time)
+tblog_path = out.path.join(os.getcwd(), 'tblogs', run_time)  # summary data for tensorboard
 
 
 # create folder for generated data
@@ -388,7 +388,7 @@ d_optimizer = optim.RMSprop(discriminator.parameters(), lr=d_learning_rate)
 # create tensorboard writer
 # The logs will be stored NOT under the run_time, but under segan_data_out/'tblog_fdr'.
 # This way, tensorboard can show graphs for each experiment in one board
-tbwriter = SummaryWriter(log_dir=os.path.join(out_path_root, tblog_fdr))
+tbwriter = SummaryWriter(log_dir=tblog_path)
 print('TensorboardX summary writer created')
 
 ### Train! ###
