@@ -24,7 +24,7 @@ in_path = 'segan_data_in'
 out_path_root = 'segan_data_out'
 ser_data_fdr = 'ser_data'  # serialized data
 gen_data_fdr = 'gen_data'  # folder for saving generated data
-model_fdr = 'models'  # folder for saving models
+checkpoint_fdr = 'checkpoint'  # folder for saving models, optimizer states, etc.
 tblog_fdr = 'tblogs'  # summary data for tensorboard
 # time info is used to distinguish dfferent training sessions
 run_time = time.strftime('%Y%m%d_%H%M', time.gmtime())  # 20180625_1742
@@ -39,9 +39,9 @@ if not os.path.exists(gen_data_path):
     os.makedirs(gen_data_path)
 
 # create folder for model checkpoints
-models_path = os.path.join(out_path, model_fdr)
-if not os.path.exists(models_path):
-    os.makedirs(models_path)
+checkpoint_path = os.path.join(out_path, checkpoint_fdr)
+if not os.path.exists(checkpoint_path):
+    os.makedirs(checkpoint_path)
 
 
 class Discriminator(nn.Module):
@@ -454,7 +454,6 @@ for epoch in range(86):
             tbwriter.add_scalar('loss/g_loss', g_loss.item(), total_steps)
             tbwriter.add_scalar('loss/g_conditional_loss', g_cond_loss.item(), total_steps)
 
-
         # save sampled audio at the beginning of each epoch
         if i == 0:
             fake_speech = generator(fixed_test_noise, z)
@@ -474,10 +473,18 @@ for epoch in range(86):
         # increment total steps
         total_steps += 1
 
-    # save the model parameters for each epoch
-    g_path = os.path.join(models_path, 'generator-{}.pkl'.format(epoch + 1))
-    d_path = os.path.join(models_path, 'discriminator-{}.pkl'.format(epoch + 1))
-    torch.save(generator.state_dict(), g_path)
-    torch.save(discriminator.state_dict(), d_path)
+    # save various states
+    state_path = os.path.join(checkpoint_path, 'state-{}.pkl'.format(epoch + 1))
+    state = {
+        'discriminator': discriminator.state_dict(),
+        'generator': generator.state_dict(),
+        'g_optimizer': g_optimizer.state_dict(),
+        'd_optimizer': d_optimizer.state_dict(),
+    }
+    torch.save(state, state_path)
+    ### can be loaded using, for example, :
+    # states = torch.load(state_path)
+    # discriminator.load_state_dict(state['discriminator'])
+
 tbwriter.close()
 print('Finished Training!')
