@@ -6,17 +6,16 @@ After definition of each modules, run the training.
 import time
 import os
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
-import numpy as np
-import emph
+from torch import nn
 from torch.utils.data import DataLoader
 from torch import optim
 from torch.autograd import Variable
+import numpy as np
 from scipy.io import wavfile
 from data_generator import AudioSampleGenerator
 from vbnorm import VirtualBatchNorm1d
 from tensorboardX import SummaryWriter
+import emph
 
 
 # define folders for output data

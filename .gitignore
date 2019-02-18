@@ -28,3 +28,6 @@ segan.json
 train.sh
 user_dev_workspace/
 run_attach.sh
+
+# tags file
+tags
