@@ -15,21 +15,21 @@ It provides:
 """
 
 
-# specify the paths - modify the paths at will
-data_path = '../data/segan'  # the base folder for dataset
-clean_train_foldername = 'clean_trainset_wav/clean_trainset_56spk_wav'  # where original clean train data exist
-noisy_train_foldername = 'noisy_trainset_wav/noisy_trainset_56spk_wav'  # where original noisy train data exist
-out_clean_train_fdrnm = 'clean_trainset_wav_16k'  # clean preprocessed data folder
-out_noisy_train_fdrnm = 'noisy_trainset_wav_16k'  # noisy preprocessed data folder
-ser_data_fdrnm = 'ser_data'  # serialized data folder
+# specify the paths - modify the paths at your will
+DATA_ROOT_DIR = '../data/segan'  # the base folder for dataset
+CLEAN_TRAIN_DIR = 'clean_trainset_56spk_wav'  # where original clean train data exist
+NOISY_TRAIN_DIR = 'noisy_trainset_56spk_wav'  # where original noisy train data exist
+DST_CLEAN_TRAIN_DIR = 'clean_trainset_wav_16k'  # clean preprocessed data folder
+DST_NOISY_TRAIN_DIR = 'noisy_trainset_wav_16k'  # noisy preprocessed data folder
+SER_DATA_DIR = 'ser_data'  # serialized data folder
+SER_DST_PATH = os.path.join(DATA_ROOT_DIR, SER_DATA_DIR)
 
 
-def data_verify():
+def verify_data():
     """
     Verifies the length of each data after preprocessing.
     """
-    ser_data_path = os.path.join(data_path, ser_data_fdrnm)
-    for dirname, dirs, files in os.walk(ser_data_path):
+    for dirname, dirs, files in os.walk(SER_DST_PATH):
         for filename in files:
             data_pair = np.load(os.path.join(dirname, filename))
             if data_pair.shape[1] != 16384:
@@ -42,33 +42,35 @@ def downsample_16k():
     Convert all audio files to have sampling rate 16k.
     """
     # clean training sets
-    if not os.path.exists(os.path.join(data_path, out_clean_train_fdrnm)):
-        os.makedirs(os.path.join(data_path, out_clean_train_fdrnm))
+    dst_clean_dir = os.path.join(DATA_ROOT_DIR, DST_CLEAN_TRAIN_DIR)
+    if not os.path.exists(dst_clean_dir):
+        os.makedirs(dst_clean_dir)
 
-    for dirname, dirs, files in os.walk(os.path.join(data_path, clean_train_foldername)):
+    for dirname, dirs, files in os.walk(os.path.join(DATA_ROOT_DIR, CLEAN_TRAIN_DIR)):
         for filename in files:
             input_filepath = os.path.abspath(os.path.join(dirname, filename))
-            output_folderpath = os.path.join(data_path, out_clean_train_fdrnm)
+            out_filepath = os.path.join(dst_clean_dir, filename)
             # use sox to down-sample to 16k
             print('Downsampling : {}'.format(input_filepath))
-            completed_process = subprocess.run(
+            subprocess.run(
                     'sox {} -r 16k {}'
-                    .format(input_filepath, os.path.join(output_folderpath, filename)),
+                    .format(input_filepath, out_filepath),
                     shell=True, check=True)
 
     # noisy training sets
-    if not os.path.exists(os.path.join(data_path, out_noisy_train_fdrnm)):
-        os.makedirs(os.path.join(data_path, out_noisy_train_fdrnm))
+    dst_noisy_dir = os.path.join(DATA_ROOT_DIR, DST_NOISY_TRAIN_DIR)
+    if not os.path.exists(dst_noisy_dir):
+        os.makedirs(dst_noisy_dir)
 
-    for dirname, dirs, files in os.walk(os.path.join(data_path, noisy_train_foldername)):
+    for dirname, dirs, files in os.walk(os.path.join(DATA_ROOT_DIR, NOISY_TRAIN_DIR)):
         for filename in files:
             input_filepath = os.path.abspath(os.path.join(dirname, filename))
-            output_folderpath = os.path.join(data_path, out_noisy_train_fdrnm)
+            out_filepath = os.path.join(dst_noisy_dir, filename)
             # use sox to down-sample to 16k
             print('Processing : {}'.format(input_filepath))
-            completed_process = subprocess.run(
+            subprocess.run(
                     'sox {} -r 16k {}'
-                    .format(input_filepath, os.path.join(output_folderpath, filename)),
+                    .format(input_filepath, out_filepath),
                     shell=True, check=True)
 
 
@@ -94,17 +96,16 @@ def process_and_serialize():
     """
     start_time = time.time()  # measure the time
     window_size = 2 ** 14  # about 1 second of samples
-    dst_folder = os.path.join(data_path, ser_data_fdrnm)
     sample_rate = 16000
     stride = 0.5
 
-    if not os.path.exists(dst_folder):
+    if not os.path.exists(SER_DST_PATH):
         print('Creating new destination folder for new data')
-        os.makedirs(dst_folder)
+        os.makedirs(SER_DST_PATH)
 
     # the path for source data (16k downsampled)
-    clean_data_path = os.path.join(data_path, out_clean_train_fdrnm)
-    noisy_data_path = os.path.join(data_path, out_noisy_train_fdrnm)
+    clean_data_path = os.path.join(DATA_ROOT_DIR, DST_CLEAN_TRAIN_DIR)
+    noisy_data_path = os.path.join(DATA_ROOT_DIR, DST_NOISY_TRAIN_DIR)
 
     # walk through the path, slice the audio file, and save the serialized result
     for dirname, dirs, files in os.walk(clean_data_path):
@@ -119,15 +120,15 @@ def process_and_serialize():
             clean_sliced = slice_signal(clean_filepath, window_size, stride, sample_rate)
             noisy_sliced = slice_signal(noisy_filepath, window_size, stride, sample_rate)
 
-            # serialize - file format goes [origial_file]_[slice_number].npy
+            # serialize - file format goes [original_file]_[slice_number].npy
             # ex) p293_154.wav_5.npy denotes 5th slice of p293_154.wav file
             for idx, slice_tuple in enumerate(zip(clean_sliced, noisy_sliced)):
                 pair = np.array([slice_tuple[0], slice_tuple[1]])
-                np.save(os.path.join(dst_folder, '{}_{}'.format(filename, idx)), arr=pair)
+                np.save(os.path.join(SER_DST_PATH, '{}_{}'.format(filename, idx)), arr=pair)
 
     # measure the time it took to process
     end_time = time.time()
-    print('Total elapsed time for prerpocessing : {}'.format(end_time - start_time))
+    print('Total elapsed time for preprocessing : {}'.format(end_time - start_time))
 
 
 if __name__ == '__main__':
@@ -136,4 +137,4 @@ if __name__ == '__main__':
     """
     # downsample_16k()
     # process_and_serialize()  # WARNING - takes very long time
-    # data_verify()
+    # verify_data()
