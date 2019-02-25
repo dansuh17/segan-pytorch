@@ -17,6 +17,8 @@ from vbnorm import VirtualBatchNorm1d
 from tensorboardX import SummaryWriter
 import emph
 
+# device we're using
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # define folders for output data
 in_path = 'segan_data_in'
@@ -331,13 +333,13 @@ def split_pair_to_vars(sample_batch_pair):
         clean_batch_var(Variable): clean signal batch
         noisy_batch_var(Varialbe): noisy signal batch
     """
-    # preemphasis
+    # pre-emphasis
     sample_batch_pair = emph.pre_emphasis(sample_batch_pair.numpy(), emph_coeff=0.95)
-    batch_pairs_var = Variable(torch.from_numpy(sample_batch_pair).type(torch.FloatTensor)).cuda()  # [40 x 2 x 16384]
+    batch_pairs_var = torch.from_numpy(sample_batch_pair).type(torch.FloatTensor).to(device)  # [40 x 2 x 16384]
     clean_batch = np.stack([pair[0].reshape(1, -1) for pair in sample_batch_pair])
-    clean_batch_var = Variable(torch.from_numpy(clean_batch).type(torch.FloatTensor)).cuda()
+    clean_batch_var = torch.from_numpy(clean_batch).type(torch.FloatTensor).to(device)
     noisy_batch = np.stack([pair[1].reshape(1, -1) for pair in sample_batch_pair])
-    noisy_batch_var = Variable(torch.from_numpy(noisy_batch).type(torch.FloatTensor)).cuda()
+    noisy_batch_var = torch.from_numpy(noisy_batch).type(torch.FloatTensor).to(device)
     return batch_pairs_var, clean_batch_var, noisy_batch_var
 
 
@@ -353,11 +355,11 @@ torch.cuda.manual_seed_all(5)  # fix random seed
 
 
 # create D and G instances
-discriminator = torch.nn.DataParallel(Discriminator(), device_ids=use_devices).cuda()  # use GPU
+discriminator = torch.nn.DataParallel(Discriminator().to(device), device_ids=use_devices)  # use GPU
 print(discriminator)
 print('Discriminator created')
 
-generator = torch.nn.DataParallel(Generator(batch_size), device_ids=use_devices).cuda()
+generator = torch.nn.DataParallel(Generator(batch_size).to(device), device_ids=use_devices)
 print(generator)
 print('Generator created')
 
@@ -401,7 +403,7 @@ for epoch in range(86):
         batch_pairs_var, clean_batch_var, noisy_batch_var = split_pair_to_vars(sample_batch_pairs)
 
         # latent vector - normal distribution
-        z = Variable(nn.init.normal_(torch.Tensor(batch_size, 1024, 8))).cuda()
+        z = Variable(nn.init.normal_(torch.Tensor(batch_size, 1024, 8))).to(device)
 
         ##### TRAIN D #####
         # TRAIN D to recognize clean audio as clean
