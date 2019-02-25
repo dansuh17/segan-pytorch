@@ -12,7 +12,7 @@ class AudioSampleGenerator(data.Dataset):
     """
     def __init__(self, data_folder_path):
         if not os.path.exists(data_folder_path):
-            raise Error('The data folder does not exist!')
+            raise FileNotFoundError
 
         # store full paths - not the actual files.
         # all files cannot be loaded up to memory due to its large size.
