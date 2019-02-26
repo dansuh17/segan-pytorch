@@ -26,7 +26,7 @@ out_path_root = 'segan_data_out'
 ser_data_fdr = 'ser_data'  # serialized data
 gen_data_fdr = 'gen_data'  # folder for saving generated data
 checkpoint_fdr = 'checkpoint'  # folder for saving models, optimizer states, etc.
-tblog_fdr = 'tblogs'  # summary data for tensorboard
+tblog_fdr = 'logs'  # summary data for tensorboard
 # time info is used to distinguish dfferent training sessions
 run_time = time.strftime('%Y%m%d_%H%M', time.gmtime())  # 20180625_1742
 # output path - all outputs (generated data, logs, model checkpoints) will be stored here
@@ -335,6 +335,7 @@ def split_pair_to_vars(sample_batch_pair):
     """
     # pre-emphasis
     sample_batch_pair = emph.pre_emphasis(sample_batch_pair.numpy(), emph_coeff=0.95)
+
     batch_pairs_var = torch.from_numpy(sample_batch_pair).type(torch.FloatTensor).to(device)  # [40 x 2 x 16384]
     clean_batch = np.stack([pair[0].reshape(1, -1) for pair in sample_batch_pair])
     clean_batch_var = torch.from_numpy(clean_batch).type(torch.FloatTensor).to(device)
@@ -344,15 +345,12 @@ def split_pair_to_vars(sample_batch_pair):
 
 
 ### SOME TRAINING PARAMETERS ###
-# batch size
 batch_size = 200
 d_learning_rate = 0.0001
-g_learning_rate = 0.0001
+g_learning_rate = 0.0002
 g_lambda = 100  # regularizer for generator
 use_devices = [0, 1, 2, 3]
 sample_rate = 16000
-torch.cuda.manual_seed_all(5)  # fix random seed
-
 
 # create D and G instances
 discriminator = torch.nn.DataParallel(Discriminator().to(device), device_ids=use_devices)  # use GPU
@@ -384,8 +382,8 @@ fixed_test_noise = Variable(torch.from_numpy(fixed_test_noise))
 print('Test samples loaded')
 
 # optimizers
-g_optimizer = optim.RMSprop(generator.parameters(), lr=g_learning_rate)
-d_optimizer = optim.RMSprop(discriminator.parameters(), lr=d_learning_rate)
+g_optimizer = optim.Adam(generator.parameters(), lr=g_learning_rate, betas=(0.5, 0.999))
+d_optimizer = optim.Adam(discriminator.parameters(), lr=d_learning_rate, betas=(0.5, 0.999))
 
 # create tensorboard writer
 # The logs will be stored NOT under the run_time, but under segan_data_out/'tblog_fdr'.
@@ -408,24 +406,23 @@ for epoch in range(86):
         ##### TRAIN D #####
         # TRAIN D to recognize clean audio as clean
         # training batch pass
-        discriminator.zero_grad()
         outputs = discriminator(batch_pairs_var, ref_batch_var)  # output : [40 x 1 x 8]
         clean_loss = torch.mean((outputs - 1.0) ** 2)  # L2 loss - we want them all to be 1
-        clean_loss.backward()
 
         # TRAIN D to recognize generated audio as noisy
         generated_outputs = generator(noisy_batch_var, z)
         disc_in_pair = torch.cat((generated_outputs, noisy_batch_var), dim=1)
         outputs = discriminator(disc_in_pair, ref_batch_var)
         noisy_loss = torch.mean(outputs ** 2)  # L2 loss - we want them all to be 0
-        noisy_loss.backward()
 
-        # d_loss = clean_loss + noisy_loss
+        d_loss = clean_loss + noisy_loss
+
+        discriminator.zero_grad()
+        d_loss.backward()
         d_optimizer.step()  # update parameters
 
         ##### TRAIN G #####
         # TRAIN G so that D recognizes G(z) as real
-        generator.zero_grad()
         generated_outputs = generator(noisy_batch_var, z)
         gen_noise_pair = torch.cat((generated_outputs, noisy_batch_var), dim=1)
         outputs = discriminator(gen_noise_pair, ref_batch_var)
@@ -437,6 +434,7 @@ for epoch in range(86):
         g_loss = g_loss_ + g_cond_loss
 
         # backprop + optimize
+        generator.zero_grad()
         g_loss.backward()
         g_optimizer.step()
 
@@ -445,6 +443,7 @@ for epoch in range(86):
             print('Epoch {}\tStep {}\td_clean_loss {}\td_noisy_loss {}\tg_loss {}\tg_loss_cond {}'
                   .format(epoch + 1, i + 1, clean_loss.item(),
                           noisy_loss.item(), g_loss.item(), g_cond_loss.item()))
+
             ### Functions below print various information about the network. Uncomment to use.
             # print('Weight for latent variable z : {}'.format(z))
             # print('Generated Outputs : {}'.format(generated_outputs))
