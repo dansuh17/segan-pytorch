@@ -9,7 +9,6 @@ import torch
 from torch import nn
 from torch.utils.data import DataLoader
 from torch import optim
-from torch.autograd import Variable
 import numpy as np
 from scipy.io import wavfile
 from data_generator import AudioSampleGenerator
@@ -355,14 +354,15 @@ def sample_latent():
     return torch.randn((batch_size, 1024, 8)).to(device)
 
 
-### SOME TRAINING PARAMETERS ###
+# SOME TRAINING PARAMETERS #
 batch_size = 128
 d_learning_rate = 0.0002
 g_learning_rate = 0.0001
 g_lambda = 100  # regularizer for generator
 use_devices = [0, 1, 2, 3]
 sample_rate = 16000
-num_gen_examples = 4  # number of generated audio examples displayed per epoch
+num_gen_examples = 10  # number of generated audio examples displayed per epoch
+num_epochs = 86
 
 # create D and G instances
 discriminator = torch.nn.DataParallel(Discriminator().to(device), device_ids=use_devices)  # use GPU
@@ -388,11 +388,6 @@ print('DataLoader created')
 ref_batch_pairs = sample_generator.reference_batch(batch_size)
 ref_batch_var, ref_clean_var, ref_noisy_var = split_pair_to_vars(ref_batch_pairs)
 
-# test samples for generation
-test_noise_filenames, fixed_test_noise = sample_generator.fixed_test_audio(batch_size)
-fixed_test_noise = Variable(torch.from_numpy(fixed_test_noise))
-print('Test samples loaded')
-
 # optimizers
 g_optimizer = optim.Adam(generator.parameters(), lr=g_learning_rate, betas=(0.5, 0.999))
 d_optimizer = optim.Adam(discriminator.parameters(), lr=d_learning_rate, betas=(0.5, 0.999))
@@ -403,10 +398,29 @@ d_optimizer = optim.Adam(discriminator.parameters(), lr=d_learning_rate, betas=(
 tbwriter = SummaryWriter(log_dir=tblog_path)
 print('TensorboardX summary writer created')
 
+# test samples for generation
+test_noise_filenames, fixed_test_clean, fixed_test_noise = \
+    sample_generator.fixed_test_audio(num_gen_examples)
+fixed_test_clean = torch.from_numpy(fixed_test_clean)
+fixed_test_noise = torch.from_numpy(fixed_test_noise)
+print('Test samples loaded')
+
+# record the fixed examples
+for idx, fname in enumerate(test_noise_filenames):
+    tbwriter.add_audio(
+        'test_audio_clean/{}'.format(fname),
+        fixed_test_clean.numpy()[idx].T,
+        sample_rate=sample_rate)
+    tbwriter.add_audio(
+        'test_audio_noise/{}'.format(fname),
+        fixed_test_noise.numpy()[idx].T,
+        sample_rate=sample_rate)
+
+
 ### Train! ###
 print('Starting Training...')
 total_steps = 1
-for epoch in range(86):
+for epoch in range(num_epochs):
     # add epoch number with corresponding step number
     tbwriter.add_scalar('epoch', epoch, total_steps)
     for i, sample_batch_pairs in enumerate(random_data_loader):
@@ -488,11 +502,15 @@ for epoch in range(86):
                 generated_sample = fake_speech_data[idx]
                 gen_fname = test_noise_filenames[idx]
                 filepath = os.path.join(
-                        gen_data_path, '{}_e{}.wav'.format(gen_fname, epoch + 1))
+                        gen_data_path, '{}_e{}.wav'.format(gen_fname, epoch))
                 # write to file
                 wavfile.write(filepath, sample_rate, generated_sample.T)
                 # show on tensorboard log
-                tbwriter.add_audio(gen_fname, generated_sample.T, total_steps, sample_rate)
+                tbwriter.add_audio(
+                    '{}/{}'.format(epoch, gen_fname),
+                    generated_sample.T,
+                    total_steps,
+                    sample_rate)
 
         total_steps += 1
 
