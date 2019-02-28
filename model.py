@@ -356,7 +356,7 @@ def sample_latent():
 
 # SOME TRAINING PARAMETERS #
 batch_size = 128
-d_learning_rate = 0.0002
+d_learning_rate = 0.0001
 g_learning_rate = 0.0001
 g_lambda = 100  # regularizer for generator
 use_devices = [0, 1, 2, 3]
@@ -442,7 +442,7 @@ for epoch in range(num_epochs):
         disc_in_pair = torch.cat((generated_outputs.detach(), noisy_batch_var), dim=1)
         outputs = discriminator(disc_in_pair, ref_batch_var)
         noisy_loss = torch.mean(outputs ** 2)  # L2 loss - we want them all to be 0
-        d_loss = clean_loss + noisy_loss
+        d_loss = 0.5 * (clean_loss + noisy_loss)
 
         # back-propagate and update
         discriminator.zero_grad()
@@ -468,7 +468,7 @@ for epoch in range(num_epochs):
         g_optimizer.step()
 
         # print message and store logs per 10 steps
-        if (i + 1) % 10 == 0:
+        if (i + 1) % 20 == 0:
             print(
                 'Epoch {}\t'
                 'Step {}\t'
@@ -486,6 +486,7 @@ for epoch in range(num_epochs):
             # print('Encoding 8th layer weight: {}'.format(generator.module.enc8.weight))
 
             # record scalar data for tensorboard
+            tbwriter.add_scalar('loss/d_loss', d_loss.item(), total_steps)
             tbwriter.add_scalar('loss/d_clean_loss', clean_loss.item(), total_steps)
             tbwriter.add_scalar('loss/d_noisy_loss', noisy_loss.item(), total_steps)
             tbwriter.add_scalar('loss/g_loss', g_loss.item(), total_steps)
