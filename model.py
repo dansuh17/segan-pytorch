@@ -200,7 +200,7 @@ class Discriminator(nn.Module):
 
 class Generator(nn.Module):
     """G"""
-    def __init__(self, batch_size):
+    def __init__(self):
         super().__init__()
         # size notations = [batch_size x feature_maps x width] (height omitted - 1D convolutions)
         # encoder gets a noisy signal as input
@@ -369,7 +369,7 @@ discriminator = torch.nn.DataParallel(Discriminator().to(device), device_ids=use
 print(discriminator)
 print('Discriminator created')
 
-generator = torch.nn.DataParallel(Generator(batch_size).to(device), device_ids=use_devices)
+generator = torch.nn.DataParallel(Generator().to(device), device_ids=use_devices)
 print(generator)
 print('Generator created')
 
