@@ -95,6 +95,7 @@ class Discriminator(nn.Module):
         self.lrelu_final = nn.LeakyReLU(negative_slope)
         self.fully_connected = nn.Linear(in_features=8, out_features=1)  # 1
         self.sigmoid = nn.Sigmoid()
+
         # initialize weights
         self.init_weights()
 
@@ -344,13 +345,24 @@ def split_pair_to_vars(sample_batch_pair):
     return batch_pairs_var, clean_batch_var, noisy_batch_var
 
 
+def sample_latent():
+    """
+    Sample a latent vector - normal distribution
+
+    Returns:
+        z(torch.Tensor): random latent vector
+    """
+    return torch.randn((batch_size, 1024, 8)).to(device)
+
+
 ### SOME TRAINING PARAMETERS ###
-batch_size = 200
-d_learning_rate = 0.0001
-g_learning_rate = 0.0002
+batch_size = 128
+d_learning_rate = 0.0002
+g_learning_rate = 0.0001
 g_lambda = 100  # regularizer for generator
 use_devices = [0, 1, 2, 3]
 sample_rate = 16000
+num_gen_examples = 4  # number of generated audio examples displayed per epoch
 
 # create D and G instances
 discriminator = torch.nn.DataParallel(Discriminator().to(device), device_ids=use_devices)  # use GPU
@@ -395,34 +407,37 @@ print('TensorboardX summary writer created')
 print('Starting Training...')
 total_steps = 1
 for epoch in range(86):
+    # add epoch number with corresponding step number
+    tbwriter.add_scalar('epoch', epoch, total_steps)
     for i, sample_batch_pairs in enumerate(random_data_loader):
         # using the sample batch pair, split into
         # batch of combined pairs, clean signals, and noisy signals
         batch_pairs_var, clean_batch_var, noisy_batch_var = split_pair_to_vars(sample_batch_pairs)
 
         # latent vector - normal distribution
-        z = Variable(nn.init.normal_(torch.Tensor(batch_size, 1024, 8))).to(device)
+        z = sample_latent()
 
         ##### TRAIN D #####
         # TRAIN D to recognize clean audio as clean
         # training batch pass
-        outputs = discriminator(batch_pairs_var, ref_batch_var)  # output : [40 x 1 x 8]
+        outputs = discriminator(batch_pairs_var, ref_batch_var)  # out: [n_batch x 1]
         clean_loss = torch.mean((outputs - 1.0) ** 2)  # L2 loss - we want them all to be 1
 
         # TRAIN D to recognize generated audio as noisy
         generated_outputs = generator(noisy_batch_var, z)
-        disc_in_pair = torch.cat((generated_outputs, noisy_batch_var), dim=1)
+        disc_in_pair = torch.cat((generated_outputs.detach(), noisy_batch_var), dim=1)
         outputs = discriminator(disc_in_pair, ref_batch_var)
         noisy_loss = torch.mean(outputs ** 2)  # L2 loss - we want them all to be 0
-
         d_loss = clean_loss + noisy_loss
 
+        # back-propagate and update
         discriminator.zero_grad()
         d_loss.backward()
         d_optimizer.step()  # update parameters
 
         ##### TRAIN G #####
         # TRAIN G so that D recognizes G(z) as real
+        z = sample_latent()
         generated_outputs = generator(noisy_batch_var, z)
         gen_noise_pair = torch.cat((generated_outputs, noisy_batch_var), dim=1)
         outputs = discriminator(gen_noise_pair, ref_batch_var)
@@ -433,16 +448,23 @@ for epoch in range(86):
         g_cond_loss = g_lambda * torch.mean(l1_dist)  # conditional loss
         g_loss = g_loss_ + g_cond_loss
 
-        # backprop + optimize
+        # back-propagate and update
         generator.zero_grad()
         g_loss.backward()
         g_optimizer.step()
 
         # print message and store logs per 10 steps
         if (i + 1) % 10 == 0:
-            print('Epoch {}\tStep {}\td_clean_loss {}\td_noisy_loss {}\tg_loss {}\tg_loss_cond {}'
-                  .format(epoch + 1, i + 1, clean_loss.item(),
-                          noisy_loss.item(), g_loss.item(), g_cond_loss.item()))
+            print(
+                'Epoch {}\t'
+                'Step {}\t'
+                'd_loss {:.5f}\t'
+                'd_clean_loss {:.5f}\t'
+                'd_noisy_loss {:.5f}\t'
+                'g_loss {:.5f}\t'
+                'g_loss_cond {:.5f}'
+                .format(epoch + 1, i + 1, d_loss.item(), clean_loss.item(),
+                        noisy_loss.item(), g_loss.item(), g_cond_loss.item()))
 
             ### Functions below print various information about the network. Uncomment to use.
             # print('Weight for latent variable z : {}'.format(z))
@@ -457,21 +479,21 @@ for epoch in range(86):
 
         # save sampled audio at the beginning of each epoch
         if i == 0:
+            z = sample_latent()
             fake_speech = generator(fixed_test_noise, z)
             fake_speech_data = fake_speech.data.cpu().numpy()  # convert to numpy array
             fake_speech_data = emph.de_emphasis(fake_speech_data, emph_coeff=0.95)
 
-            for idx in range(4):  # select four samples
+            for idx in range(num_gen_examples):
                 generated_sample = fake_speech_data[idx]
                 gen_fname = test_noise_filenames[idx]
                 filepath = os.path.join(
                         gen_data_path, '{}_e{}.wav'.format(gen_fname, epoch + 1))
                 # write to file
                 wavfile.write(filepath, sample_rate, generated_sample.T)
-                # write for tensorboard log
+                # show on tensorboard log
                 tbwriter.add_audio(gen_fname, generated_sample.T, total_steps, sample_rate)
 
-        # increment total steps
         total_steps += 1
 
     # save various states
@@ -483,7 +505,8 @@ for epoch in range(86):
         'd_optimizer': d_optimizer.state_dict(),
     }
     torch.save(state, state_path)
-    ### can be loaded using, for example, :
+
+    ### Can be loaded using, for example:
     # states = torch.load(state_path)
     # discriminator.load_state_dict(state['discriminator'])
 
