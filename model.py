@@ -1,6 +1,9 @@
 """
-Here we define the discriminator and generator for SEGAN.
-After definition of each modules, run the training.
+Here we define the discriminator and generator for SEGAN,
+from paper "Pascual et al. - SEGAN: Speech Enhancement Generative Adversarial Network."
+After defining each module, the script also runs the training.
+
+See: https://arxiv.org/abs/1703.09452
 """
 
 import time
@@ -46,7 +49,9 @@ if not os.path.exists(checkpoint_path):
 
 
 class Discriminator(nn.Module):
-    """D"""
+    """
+    Discriminator model of SEGAN.
+    """
     def __init__(self, dropout_drop=0.5):
         super().__init__()
         # Define convolution operations.
@@ -199,7 +204,9 @@ class Discriminator(nn.Module):
 
 
 class Generator(nn.Module):
-    """G"""
+    """
+    Generator model of SEGAN.
+    """
     def __init__(self):
         super().__init__()
         # size notations = [batch_size x feature_maps x width] (height omitted - 1D convolutions)
@@ -329,16 +336,18 @@ def split_pair_to_vars(sample_batch_pair):
     Args:
         sample_batch_pair(torch.Tensor): batch of [clean_signal, noisy_signal] pairs
     Returns:
-        batch_pairs_var(Variable): batch of pairs containing clean signal and noisy signal
-        clean_batch_var(Variable): clean signal batch
-        noisy_batch_var(Varialbe): noisy signal batch
+        batch_pairs_var(torch.Tensor): batch of pairs containing clean signal and noisy signal
+        clean_batch_var(torch.Tensor): clean signal batch
+        noisy_batch_var(torch.Tensor): noisy signal batch
     """
     # pre-emphasis
     sample_batch_pair = emph.pre_emphasis(sample_batch_pair.numpy(), emph_coeff=0.95)
 
     batch_pairs_var = torch.from_numpy(sample_batch_pair).type(torch.FloatTensor).to(device)  # [40 x 2 x 16384]
+
     clean_batch = np.stack([pair[0].reshape(1, -1) for pair in sample_batch_pair])
     clean_batch_var = torch.from_numpy(clean_batch).type(torch.FloatTensor).to(device)
+
     noisy_batch = np.stack([pair[1].reshape(1, -1) for pair in sample_batch_pair])
     noisy_batch_var = torch.from_numpy(noisy_batch).type(torch.FloatTensor).to(device)
     return batch_pairs_var, clean_batch_var, noisy_batch_var
@@ -355,9 +364,9 @@ def sample_latent():
 
 
 # SOME TRAINING PARAMETERS #
-batch_size = 128
-d_learning_rate = 0.0001
-g_learning_rate = 0.0001
+batch_size = 256
+d_learning_rate = 0.00005
+g_learning_rate = 0.0002
 g_lambda = 100  # regularizer for generator
 use_devices = [0, 1, 2, 3]
 sample_rate = 16000
@@ -400,13 +409,13 @@ print('TensorboardX summary writer created')
 
 # test samples for generation
 test_noise_filenames, fixed_test_clean, fixed_test_noise = \
-    sample_generator.fixed_test_audio(num_gen_examples)
+    sample_generator.fixed_test_audio(batch_size)
 fixed_test_clean = torch.from_numpy(fixed_test_clean)
 fixed_test_noise = torch.from_numpy(fixed_test_noise)
 print('Test samples loaded')
 
 # record the fixed examples
-for idx, fname in enumerate(test_noise_filenames):
+for idx, fname in enumerate(test_noise_filenames[:num_gen_examples]):
     tbwriter.add_audio(
         'test_audio_clean/{}'.format(fname),
         fixed_test_clean.numpy()[idx].T,
