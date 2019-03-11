@@ -365,13 +365,14 @@ def sample_latent():
 
 # SOME TRAINING PARAMETERS #
 batch_size = 256
-d_learning_rate = 0.00005
+d_learning_rate = 0.0002
 g_learning_rate = 0.0002
-g_lambda = 100  # regularizer for generator
+g_lambda = 0  # regularizer for generator
 use_devices = [0, 1, 2, 3]
 sample_rate = 16000
 num_gen_examples = 10  # number of generated audio examples displayed per epoch
 num_epochs = 86
+train_g_iter = 5
 
 # create D and G instances
 discriminator = torch.nn.DataParallel(Discriminator().to(device), device_ids=use_devices)  # use GPU
@@ -430,6 +431,7 @@ for idx, fname in enumerate(test_noise_filenames[:num_gen_examples]):
 print('Starting Training...')
 total_steps = 1
 for epoch in range(num_epochs):
+    g_lambda += 1
     # add epoch number with corresponding step number
     tbwriter.add_scalar('epoch', epoch, total_steps)
     for i, sample_batch_pairs in enumerate(random_data_loader):
@@ -460,21 +462,22 @@ for epoch in range(num_epochs):
 
         ##### TRAIN G #####
         # TRAIN G so that D recognizes G(z) as real
-        z = sample_latent()
-        generated_outputs = generator(noisy_batch_var, z)
-        gen_noise_pair = torch.cat((generated_outputs, noisy_batch_var), dim=1)
-        outputs = discriminator(gen_noise_pair, ref_batch_var)
+        for _ in range(train_g_iter):
+            z = sample_latent()
+            generated_outputs = generator(noisy_batch_var, z)
+            gen_noise_pair = torch.cat((generated_outputs, noisy_batch_var), dim=1)
+            outputs = discriminator(gen_noise_pair, ref_batch_var)
 
-        g_loss_ = 0.5 * torch.mean((outputs - 1.0) ** 2)
-        # L1 loss between generated output and clean sample
-        l1_dist = torch.abs(torch.add(generated_outputs, torch.neg(clean_batch_var)))
-        g_cond_loss = g_lambda * torch.mean(l1_dist)  # conditional loss
-        g_loss = g_loss_ + g_cond_loss
+            g_loss_ = 0.5 * torch.mean((outputs - 1.0) ** 2)
+            # L1 loss between generated output and clean sample
+            l1_dist = torch.abs(torch.add(generated_outputs, torch.neg(clean_batch_var)))
+            g_cond_loss = g_lambda * torch.mean(l1_dist)  # conditional loss
+            g_loss = g_loss_ + g_cond_loss
 
-        # back-propagate and update
-        generator.zero_grad()
-        g_loss.backward()
-        g_optimizer.step()
+            # back-propagate and update
+            generator.zero_grad()
+            g_loss.backward()
+            g_optimizer.step()
 
         # print message and store logs per 10 steps
         if (i + 1) % 20 == 0:
